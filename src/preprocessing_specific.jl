@@ -1,4 +1,4 @@
-function load_and_prepare_scores_df(data_path::String; CANDIDATOS = CANDIDATOS_eseb2022)
+function load_and_prepare_scores_df(data_path::String; candidates = CANDIDATOS_eseb2022)
     # Load SPSS file
     df_e22 = load_spss_file(data_path)
 
@@ -11,7 +11,7 @@ function load_and_prepare_scores_df(data_path::String; CANDIDATOS = CANDIDATOS_e
     # Copy and rename
     scores_df = copy(df_e22)
     rename!(scores_df, Dict(zip(build_column_symbols("Q16_", 13), PARTIDOS)))
-    rename!(scores_df, Dict(zip(build_column_symbols("Q17_", 13), CANDIDATOS)))
+    rename!(scores_df, Dict(zip(build_column_symbols("Q17_", 13), candidates)))
 
     # Recode D10 (religion)
     replace!(x -> x in (99.0, 100.0, 101.0, 102.0) ? 95.0 : x, scores_df.D10)
@@ -119,7 +119,7 @@ end
 
 
 
-function load_and_prepare_e2018(df_path; CANDIDATOS = candidates2018)
+function load_and_prepare_e2018(df_path; candidates = candidates2018)
    
 
     df_e18 = load_spss_file(df_path)
@@ -132,7 +132,7 @@ function load_and_prepare_e2018(df_path; CANDIDATOS = candidates2018)
 
 
 
-    rename!(df_e18, Dict(zip(build_column_symbols("Q16", 21), CANDIDATOS)))
+    rename!(df_e18, Dict(zip(build_column_symbols("Q16", 21), candidates)))
 
 
     replace!(x -> x in (97., 98., 99.) ? 99.0 : x, df_e18.D10)
