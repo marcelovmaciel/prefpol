@@ -277,3 +277,158 @@ function load_all_bootstraps(; years   = nothing,
 end
 
 
+function add_imputation_variants_to_bts(bt::NamedTuple;
+most_known_candidates::Vector{String}=String[])
+
+reps          = bt.data                       # Vector{DataFrame}
+cfg           = bt.cfg
+B             = length(reps)
+
+variants = Dict{Symbol, Vector{DataFrame}}(
+    :zero   => Vector{DataFrame}(undef, B),
+    :random => Vector{DataFrame}(undef, B),
+    :mice   => Vector{DataFrame}(undef, B),
+)
+
+for (i, df) in enumerate(reps)
+    imp = imputation_variants(df,
+                              cfg.candidates,
+                              cfg.demographics;
+                              most_known_candidates)
+    variants[:zero][i]   = imp.zero
+    variants[:random][i] = imp.random
+    variants[:mice][i]   = imp.mice
+end
+
+return (data = variants, cfg = cfg, path = bt.path)
+end
+
+
+
+function impute_and_save(bt::NamedTuple;
+                         dir::AbstractString = INT_DIR,
+                         overwrite::Bool     = false,
+                         most_known_candidates::Vector{String} = String[])
+
+    year  = bt.cfg.year
+    path  = joinpath(dir, "boot_imp_$(year).jld2")
+
+    if !overwrite && isfile(path)
+        @info "Using cached imputed bootstrap at $(path)"
+        return path
+    end
+
+    imp   = add_imputation_variants_to_bts(bt; most_known_candidates)
+    @save path imp
+    @info "Saved imputed bootstrap for year $(year) → $(path)"
+
+    # explicit cleanup
+    imp = nothing
+    GC.gc()
+
+    return path
+end
+
+
+# ————————————————————————————————————————————————————————————————
+#  2.  Batch driver: iterate over *all* (or selected) years
+# ————————————————————————————————————————————————————————————————
+"""
+    impute_all_bootstraps(; years         = nothing,
+                             base_dir      = INT_DIR,
+                             imp_dir       = INT_DIR,
+                             overwrite     = false,
+                             most_known_candidates = String[])
+        → OrderedDict{Int,String}
+
+Load every bootstrap in `base_dir`, run imputations, write each year’s
+result to `imp_dir`, and immediately release memory.
+
+`years` may be:
+  * `nothing`  – all years present on disk;
+  * an `Int`   – a single year;
+  * `Vector{Int}` – a specific set of years.
+
+Returns an `OrderedDict year ⇒ saved_path`, sorted chronologically.
+"""
+function impute_all_bootstraps(; years    = nothing,
+                               base_dir::AbstractString = INT_DIR,
+                               imp_dir::AbstractString  = INT_DIR,
+                               overwrite::Bool          = false,
+                               most_known_candidates::Vector{String} = String[])
+
+    boots = load_all_bootstraps(; years, dir = base_dir, quiet = true)
+
+    out   = OrderedCollections.OrderedDict{Int,String}()
+
+    for (yr, bt) in boots
+        @info "Imputing year $(yr)…"
+        out[yr] = impute_and_save(bt;
+                                  dir           = imp_dir,
+                                  overwrite,
+                                  most_known_candidates)
+    end
+    return out
+end
+
+
+
+
+const IMP_PREFIX  = "boot_imp_"   # change here if you rename files
+const IMP_DIR     = INT_DIR       # default directory to look in
+
+# ————————————————————————————————————————————————————————————————
+# 1.  Single-year loader
+# ————————————————————————————————————————————————————————————————
+"""
+    load_imputed_bootstrap(year;
+                           dir   = IMP_DIR,
+                           quiet = false)  -> NamedTuple
+
+Load `dir/boot_imp_YEAR.jld2` and return the stored NamedTuple
+`(data = Dict, cfg = ElectionConfig, path = String)`.
+"""
+function load_imputed_bootstrap(year::Integer;
+                                dir::AbstractString = IMP_DIR,
+                                quiet::Bool = false)
+
+    path = joinpath(dir, "$(IMP_PREFIX)$(year).jld2")
+    isfile(path) || error("File not found: $(path)")
+
+    imp = nothing
+    @load path imp
+    !quiet && @info "Loaded imputed bootstrap for year $(year) ← $(path)"
+    return imp
+end
+
+function load_all_imputed_bootstraps(; years  = nothing,
+                                     dir::AbstractString = IMP_DIR,
+                                     quiet::Bool = false)
+
+    # 1 — discover candidate files ------------------------------------------------
+    allfiles = readdir(dir; join = true)
+    paths = filter(p -> startswith(basename(p), IMP_PREFIX) &&
+                    endswith(p, ".jld2"), allfiles)
+
+    isempty(paths) && error("No imputed bootstrap files found in $(dir)")
+
+    # 2 — decide which years we actually want ------------------------------------
+    wanted = years === nothing       ? nothing :
+             isa(years,Integer)      ? Set([years]) :
+             Set(years)
+
+    # 3 — load, build OrderedDict -------------------------------------------------
+    out = OrderedCollections.OrderedDict{Int,NamedTuple}()
+
+    for p in sort(paths)                           # alphabetical == chronological
+        yr = parse(Int, splitext(basename(p)[length(IMP_PREFIX)+1:end])[1])
+        (wanted !== nothing && !(yr in wanted)) && continue
+
+        imp = nothing
+        @load p imp
+        !quiet && @info "Loaded imputed bootstrap $(yr) ← $(p)"
+        out[yr] = imp
+    end
+
+    return out
+end
