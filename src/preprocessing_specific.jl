@@ -1,3 +1,28 @@
+function pp_proportions(df::DataFrame, cols)
+    for col in cols
+        v  = df[!, col]                  # keeps missings
+        pm = proportionmap(v)            # Dict(value => share)
+        N  = length(v)                   # total observations (incl. missings)
+
+        println("\n" * "─"^40)
+        @printf("%-15s │ %8s │ %s\n", string(col), "prop.", "count")
+        println("─"^40)
+
+        for (val, p) in sort(collect(pm); by = first)  # deterministic order
+            @printf("%-15s │ %6.2f%% │ %d\n",
+                    val, p * 100, Int(round(p * N)))
+        end
+    end
+    println("─"^40)
+end
+
+
+
+
+
+
+
+
 function load_and_prepare_scores_df(data_path::String; candidates = CANDIDATOS_eseb2022)
     # Load SPSS file
     df_e22 = load_spss_file(data_path)
@@ -76,29 +101,28 @@ function load_and_prepare_e2006(df_path; candidates = candidates2006)
 
     rename!(df_e06, Dict(zip(build_letter_column_symbols("eseb16", letters), candidates)))
 
+    pairs = (11.0 => 99.0, 77.0 => 99.0)
+    for col in candidates
+        replace!(df_e06[!, col], pairs...)
+    end
 
 
     df_e06.peso = df_e06.peso_1
 
     df_e06.Sex = categorical(df_e06.SEXO)
 
+    replace!(df_e06.eseb15a, pairs...)
+    replace!(x -> ismissing(x) ? x : x < 5 ? 0.0 : x <= 10 ? 1.0 : 99.0,
+             df_e06[!, :eseb15a])
 
-    # df_e06.eseb8 |> proportionmap again, gigantic missing here 
-
-    pt_clean = coalesce.(df_e06.eseb15a, 0)      # replaces missing with 0
-
-    code = ifelse.(pt_clean .< 5,            0,
-                ifelse.(pt_clean .<= 10,         1,
-                                                99))
-    df_e06.PT = code 
-
-
+    df_e06.PT = df_e06.eseb15a
+   
 
         # Recode Q19 into ideological categories
     new = Vector{Int64}(undef, nrow(df_e06))
             @inbounds for (i, x) in pairs(df_e06.eseb19)
-                if x == 98.
-                    new[i] = 98
+                if x > 10
+                    new[i] = 99
                 elseif 0 ≤ x ≤ 3
                     new[i] = -1
                 elseif x ≤ 6
@@ -106,14 +130,14 @@ function load_and_prepare_e2006(df_path; candidates = candidates2006)
                 elseif x ≤ 10
                     new[i] = 1
                 else
-                    new[i] = 98
+                    new[i] = 99
                 end
         end
 
 
     df_e06.Ideology= categorical(new;
                 ordered = true,
-                levels  = [-1, 0, 1, 98])
+                levels  = [-1, 0, 1, 99])
     return(df_e06)
 end
 
@@ -157,8 +181,8 @@ function load_and_prepare_e2018(df_path; candidates = candidates2018)
     # Recode Q19 into ideological categories
     new = Vector{Int64}(undef, nrow(df_e18))
         @inbounds for (i, x) in pairs(df_e18.Q18)
-            if x == 98.
-                new[i] = 98
+            if x == 99.
+                new[i] = 99
             elseif 0 ≤ x ≤ 3
                 new[i] = -1
             elseif x ≤ 6
@@ -166,17 +190,17 @@ function load_and_prepare_e2018(df_path; candidates = candidates2018)
             elseif x ≤ 10
                 new[i] = 1
             else
-                new[i] = 98
+                new[i] = 99
             end
     end
 
     df_e18.Ideology= categorical(new;
             ordered = true,
-            levels  = [-1, 0, 1, 98])
+            levels  = [-1, 0, 1, 99])
         
 
 
-    pt_clean = coalesce.(df_e18.Q1513, 0)      # replaces missing with 0
+    pt_clean = coalesce.(df_e18.Q1513, 99)      # replaces missing with 0
 
     code = ifelse.(pt_clean .< 5,            0,
             ifelse.(pt_clean .<= 10,         1,

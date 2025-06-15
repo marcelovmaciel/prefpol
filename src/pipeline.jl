@@ -358,6 +358,9 @@ function impute_all_bootstraps(; years    = nothing,
                                most_known_candidates::Vector{String} = String[])
 
     boots = load_all_bootstraps(; years, dir = base_dir, quiet = true)
+    n     = length(boots)
+
+    prog  = pm.Progress(n; desc = "Imputing bootstraps", barlen = 30)
 
     out   = OrderedCollections.OrderedDict{Int,String}()
 
@@ -365,13 +368,13 @@ function impute_all_bootstraps(; years    = nothing,
         @info "Imputing year $(yr)…"
         out[yr] = impute_and_save(bt;
                                   dir           = imp_dir,
-                                  overwrite,
-                                  most_known_candidates)
+                                  overwrite     = overwrite,
+                                  most_known_candidates = most_known_candidates)
+        pm.next!(prog)                  # advance progress bar
     end
+
     return out
 end
-
-
 
 
 const IMP_PREFIX  = "boot_imp_"   # change here if you rename files
