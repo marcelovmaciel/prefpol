@@ -63,7 +63,7 @@ function prepare_scores_for_imputation_int(df::DataFrame,
 
     # (2) Work only on the numeric score columns
     scores_int = mapcols(col -> Int.(col), df[:, numeric_cols])
-    declared   = Impute.declaremissings(scores_int; values = (96, 97, 98))
+    declared   = Impute.declaremissings(scores_int; values = (96, 97, 98, 99))
 
     # (3) Append any extra (demographic) columns, untouched
     return isempty(extra_cols) ? declared : hcat(declared, df[:, extra_cols])

@@ -45,8 +45,8 @@ function load_and_prepare_scores_df(data_path::String; candidates = CANDIDATOS_e
 
     # Recode D10 (religion)
     replace!(x -> x in (99., 100., 101., 102.) ? 95.0 : x, df_e22.D10)
-    replace!(x -> x in (96., 97.) ? 96.0 : x, df_e22.D10)
-    replace!(x -> x in (97., 98.) ? 99.0 : x, df_e22.D10)
+    replace!(x -> x in (96.) ? 97.0 : x, df_e22.D10)
+    replace!(x -> x in (98.) ? 99.0 : x, df_e22.D10)
 
     df_e22.Religion = categorical(df_e22.D10)
 
