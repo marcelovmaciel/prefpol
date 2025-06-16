@@ -28,65 +28,68 @@ function load_and_prepare_scores_df(data_path::String; candidates = CANDIDATOS_e
     df_e22 = load_spss_file(data_path)
 
     # Metadata
-    PARTIDOS = ["PDT", "PL", "PODEMOS", "PP", "PT", "PSB", "PSD", "PSDB", "PSOL", "REDE", "REP", "UB", "MDB"]
+    #PARTIDOS = ["PDT", "PL", "PODEMOS", "PP", "PT", "PSB", "PSD", "PSDB", "PSOL", "REDE", "REP", "UB", "MDB"]
 
-    # Helper function
+   
     build_column_symbols(base::String, n::Int) = [Symbol(base * string(i)) for i in 1:n]
 
-    # Copy and rename
-    scores_df = copy(df_e22)
-    rename!(scores_df, Dict(zip(build_column_symbols("Q16_", 13), PARTIDOS)))
-    rename!(scores_df, Dict(zip(build_column_symbols("Q17_", 13), candidates)))
+    rename!(df_e22, Dict(zip(build_column_symbols("Q17_", 13), candidates)))
+
+
+    pairs = (96.0 => 99.0, 97.0 => 99.0, 98.0 => 99.0)
+
+    for col in candidates
+            replace!(df_e22[!, col], pairs...)
+    end
+
 
     # Recode D10 (religion)
-    replace!(x -> x in (99.0, 100.0, 101.0, 102.0) ? 95.0 : x, scores_df.D10)
-    replace!(x -> x in (97.0, 98.0) ? 97.0 : x, scores_df.D10)
-    scores_df.D10 = categorical(scores_df.D10)
-    scores_df.Religion = scores_df.D10
+    replace!(x -> x in (99., 100., 101., 102.) ? 95.0 : x, df_e22.D10)
+    replace!(x -> x in (96., 97.) ? 96.0 : x, df_e22.D10)
+    replace!(x -> x in (97., 98.) ? 99.0 : x, df_e22.D10)
 
+    df_e22.Religion = categorical(df_e22.D10)
+
+    
     # Recode D02 (sex)
-    scores_df.D02 = categorical(scores_df.D02)
-    scores_df.Sex = scores_df.D02
+    df_e22.Sex = categorical(df_e22.D02)
+
     # Recode D12a (race)
-    replace!(x -> x in (97.0, 98.0) ? 97.0 : x, scores_df.D12a)
+    replace!(x -> x in (97.0, 98.0) ? 99.0 : x, df_e22.D12a)
     
-    scores_df.D12a = categorical(scores_df.D12a)
+    df_e22.Race = categorical(df_e22.D12a)
     
-    scores_df.Race = scores_df.D12a
 
-    # Recode Q19 problematic codes
-    replace!(x -> x in (95.0, 96.0, 98.0) ? 99.0 : x, scores_df.Q19)
-
-    # Recode Q19 into ideological categories
-    new = Vector{Int64}(undef, nrow(scores_df))
-    @inbounds for (i, x) in pairs(scores_df.Q19)
-        if x == 99
-            new[i] = 99
-        elseif 0 ≤ x ≤ 3
-            new[i] = -1
-        elseif x ≤ 6
-            new[i] = 0
-        elseif x ≤ 10
-            new[i] = 1
-        else
-            new[i] = 99
+    # Q19 / Ideology 
+    replace!(x -> x in (95.0, 96.0, 98.0) ? 99.0 : x, df_e22.Q19)
+    function recode19(x)
+            if ismissing(x)
+             return x                     # keep missing
+          elseif x <= 3                    # 0–3  → –1
+             return -1
+            elseif x <= 6                    # 4–6  → 0
+             return 0
+            elseif x <= 10                   # 7–10 → 1
+             return 1
+            else
+             return x                     # 99 (or anything >10) unchanged
+            end
         end
-    end
-    scores_df.Ideology= categorical(new;
-        ordered = true,
-        levels  = [-1, 0, 1, 99])
+
+    df_e22.Q19 .= recode19.(df_e22.Q19)   # broadcast + in-place assign
+    df_e22.Ideology = categorical(df_e22.Q19;
+                    ordered = true,
+                    levels  = [-1, 0, 1, 99])
     
-    scores_df[!, :PT] = Float64[
-        coalesce((x ≥ 5) && (x ≤ 10), false) ? 1.0 : 0.0
-        for x in scores_df[!, :PT]
-            ]
-#=     pt_clean = coalesce.(scores_df.PT, 0)      # replaces missing with 0
-    code = ifelse.(pt_clean .< 5,            0,
-        ifelse.(pt_clean .<= 10,         1,
-                                        99)) =#
-   transform!(scores_df,
-           :Q31_7 => ByRow(x -> x in (97.0, 98.0) ? 3.0 : x) => :Abortion)
-    return scores_df
+    # PT 
+    replace!(x -> x in (95.0, 96.0, 97.0, 98.0) ? 99.0 : x, df_e22.Q18_5)
+    replace!(x -> ismissing(x) ? x : x < 5 ? 0.0 : x <= 10 ? 1.0 : 99.0,
+                 df_e22[!, :Q18_5])
+    df_e22.PT = df_e22.Q18_5
+
+   replace!( x -> x in (97.0, 98.0) ? 99.0 : x, df_e22.Q31_7)
+   df_e22.Abortion = df_e22.Q31_7
+    return df_e22
 end
 
 
@@ -116,28 +119,31 @@ function load_and_prepare_e2006(df_path; candidates = candidates2006)
              df_e06[!, :eseb15a])
 
     df_e06.PT = df_e06.eseb15a
-   
+    
+    pairs = (66.0 => 99.0, 77.0 => 99.0)
 
-        # Recode Q19 into ideological categories
-    new = Vector{Int64}(undef, nrow(df_e06))
-            @inbounds for (i, x) in pairs(df_e06.eseb19)
-                if x > 10
-                    new[i] = 99
-                elseif 0 ≤ x ≤ 3
-                    new[i] = -1
-                elseif x ≤ 6
-                    new[i] = 0
-                elseif x ≤ 10
-                    new[i] = 1
-                else
-                    new[i] = 99
-                end
+    replace!(df_e06[!, :eseb19], pairs...)
+    function recode19(x)
+        if ismissing(x)
+            return x                     # keep missing
+        elseif x <= 3                    # 0–3  → –1
+            return -1
+        elseif x <= 6                    # 4–6  → 0
+            return 0
+        elseif x <= 10                   # 7–10 → 1
+            return 1
+        else
+            return x                     # 99 (or anything >10) unchanged
         end
+    end
+    df_e06.eseb19 .= recode19.(df_e06.eseb19)   # broadcast + in-place assign
 
 
-    df_e06.Ideology= categorical(new;
+
+    df_e06.Ideology= categorical(df_e06.eseb19;
                 ordered = true,
                 levels  = [-1, 0, 1, 99])
+
     return(df_e06)
 end
 
@@ -157,54 +163,69 @@ function load_and_prepare_e2018(df_path; candidates = candidates2018)
 
 
     rename!(df_e18, Dict(zip(build_column_symbols("Q16", 21), candidates)))
+    pairs = (96.0 => 99.0, 97.0 => 99.0, 98.0 => 99.0)
+    for col in candidates
+        replace!(df_e18[!, col], pairs...)
+    end
 
-
-    replace!(x -> x in (97., 98., 99.) ? 99.0 : x, df_e18.D10)
+    ##  religion =====================================================================================================================
+    replace!(x -> x in (97.) ? 96.0 : x, df_e18.D10)
+    replace!(x -> x in (98.) ? 99.0 : x, df_e18.D10)
     df_e18.D10 = categorical(df_e18.D10)
     df_e18.Religion = df_e18.D10
 
-    df_e18.D2_SEXO = categorical(df_e18.D2_SEXO)
-    df_e18.Sex  = df_e18.D2_SEXO
+    # sex =====================================================================================================================
+    df_e18.Sex = categorical(df_e18.D2_SEXO)
 
-
-    replace!(x -> x in (8., 9.) ? 8.0 : x, df_e18.D12A)
+    # Race ===================================================================================================================== 
+    replace!(x -> x in (8., 9.) ? 9.0 : x, df_e18.D12A)
 
     df_e18.Race = df_e18.D12A
 
 
-
-    replace!(x -> x in (95.0, 97.0, 98.0) ? 98.0 : x, df_e18.Q18)
-
-
+    # ideology ==============================================================================
+    replace!(x -> x in (95.0, 97.0, 98.0) ? 99.0 : x, df_e18.Q18)
 
 
-    # Recode Q19 into ideological categories
-    new = Vector{Int64}(undef, nrow(df_e18))
-        @inbounds for (i, x) in pairs(df_e18.Q18)
-            if x == 99.
-                new[i] = 99
-            elseif 0 ≤ x ≤ 3
-                new[i] = -1
-            elseif x ≤ 6
-                new[i] = 0
-            elseif x ≤ 10
-                new[i] = 1
+
+
+    function recodeQ18(x)
+            if ismissing(x)
+                return x                     # keep missing
+            elseif x <= 3                    # 0–3  → –1
+                return -1
+            elseif x <= 6                    # 4–6  → 0
+                return 0
+            elseif x <= 10                   # 7–10 → 1
+                return 1
             else
-                new[i] = 99
+                return x                     # 99 (or anything >10) unchanged
             end
     end
 
-    df_e18.Ideology= categorical(new;
-            ordered = true,
-            levels  = [-1, 0, 1, 99])
-        
+    df_e18.Ideology .= recodeQ18.(df_e18.Q18)   # broadcast + in-place assign
 
 
-    pt_clean = coalesce.(df_e18.Q1513, 99)      # replaces missing with 0
 
-    code = ifelse.(pt_clean .< 5,            0,
-            ifelse.(pt_clean .<= 10,         1,
-                                            99))
-    df_e18.PT = code
+    df_e18.Ideology= categorical(df_e18.Ideology;
+                    ordered = true,
+                    levels  = [-1, 0, 1, 99])
+
+
+    # PT  =====================================================================================================================
+    pairs = (96.0 => 99.0, 97.0 => 99.0, 98.0 => 99.0)
+
+
+    replace!(df_e18.Q1513, pairs...)
+
+
+
+
+
+    replace!(x -> ismissing(x) ? x : x < 5 ? 0.0 : x <= 10 ? 1.0 : 99.0,
+                 df_e18[!, :Q1513])
+
+    df_e18.PT = df_e18.Q1513
+
     return(df_e18)                                        
 end
