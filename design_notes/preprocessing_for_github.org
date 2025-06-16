@@ -6,7 +6,7 @@ Note those are all unweighted proportions!
 
 * Eseb 2006
 - The candidate list lies in eseb16 letters a through f.
-  [[file:imgs/Screenshot from 2025-06-15 16-27-40.png]]h
+  [[file:./imgs/Screenshot from 2025-06-15 16-27-40.png]]
   - I rename the columns to the corresponding candidate names, and recode 11,77, 99 -> 99
 - I get the following proportionmaps
 ────────────────────────────────────────
