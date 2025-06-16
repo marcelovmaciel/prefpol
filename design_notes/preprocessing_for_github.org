@@ -6,7 +6,7 @@ Note those are all unweighted proportions!
 
 * Eseb 2006
 - The candidate list lies in eseb16 letters a through f.
-  [[file:img/Screenshot from 2025-06-15 16-27-40.png]]h
+  [[file:imgs/Screenshot from 2025-06-15 16-27-40.png]]h
   - I rename the columns to the corresponding candidate names, and recode 11,77, 99 -> 99
 - I get the following proportionmaps
 ────────────────────────────────────────
@@ -109,7 +109,7 @@ José_Serra      │    prop. │ count
 - peso is actually in peso_1 so I reassign. \
 - Sex is in Sexo.
 - Pt is in eseb15a. I recode 11,7, to 99. I also recode less than 5 to 0 more than 5 up to 10 to 1.
-  [[file:img/Screenshot from 2025-06-15 16-51-52.png]]
+  [[file:imgs/Screenshot from 2025-06-15 16-51-52.png]]
   - proportions before any encoding:
     ────────────────────────────────────────
 eseb15a         │    prop. │ count
@@ -156,7 +156,7 @@ eseb15a         │    prop. │ count
 ────────────────────────────────────────
 
   - I afterwards rename it to PT
-[[file:img/Screenshot from 2025-06-15 17-05-29.png]]
+[[file:imgs/Screenshot from 2025-06-15 17-05-29.png]]
 - this question (ideology) I recode 66,77, to 99. Proportion before encoding:
   ────────────────────────────────────────
 eseb19          │    prop. │ count
@@ -207,7 +207,7 @@ eseb19          │    prop. │ count
 * eseb  2018
 - The candidate list lies in Q16:
 
-  [[file:img/Screenshot from 2025-06-15 19-35-29.png]]
+  [[file:imgs/Screenshot from 2025-06-15 19-35-29.png]]
 
 - recoded 96,97,98 -> 99.
   - proportion before encoding:
@@ -929,7 +929,7 @@ Michel_Temer    │    prop. │ count
 99.0            │   5.95% │ 149
 ────────────────────────────────────────
 - used religion.
-  [[file:img/Screenshot from 2025-06-16 11-54-00.png]]
+  [[file:imgs/Screenshot from 2025-06-16 11-54-00.png]]
 - recoded 97 -> 96 and 98 -> 99
 - proportion before encoding:
   ────────────────────────────────────────
@@ -967,7 +967,7 @@ D10             │    prop. │ count
 ────────────────────────────────────────
 - used Sex (column name Sex from original D2_SEXO)
 - Used race (column name D12A becomes Race):
-  [[file:img/Screenshot from 2025-06-16 11-59-59.png]]
+  [[file:imgs/Screenshot from 2025-06-16 11-59-59.png]]
   - recoded 8->9
   - proportion before encoding:
 ────────────────────────────────────────
@@ -993,7 +993,7 @@ Race            │    prop. │ count
 9.0             │   2.43% │ 61
 ────────────────────────────────────────
 - Used Q18 (ideology)
-  [[file:img/Screenshot from 2025-06-16 12-06-09.png]]
+  [[file:imgs/Screenshot from 2025-06-16 12-06-09.png]]
 - Proportion before encoding:
   ────────────────────────────────────────
 Q18             │    prop. │ count
@@ -1041,7 +1041,7 @@ Ideology        │    prop. │ count
 ────────────────────────────────────────
 
 - I again analyze PT which is Q1513:
-  [[file:img/Screenshot from 2025-06-16 13-21-42.png]]
+  [[file:imgs/Screenshot from 2025-06-16 13-21-42.png]]
   - proportion before any encoding:
     ────────────────────────────────────────
 Q1513           │    prop. │ count
@@ -1089,8 +1089,8 @@ PT              │    prop. │ count
 
 * Eseb 2022
 - candidates lie in q17:
-  [[file:img/Screenshot from 2025-06-16 13-44-46.png]]
-  [[file:img/Screenshot from 2025-06-16 13-45-19.png]]
+  [[file:imgs/Screenshot from 2025-06-16 13-44-46.png]]
+  [[file:imgs/Screenshot from 2025-06-16 13-45-19.png]]
 - before any recoding what we have is:
   ────────────────────────────────────────
 CIRO_GOMES      │    prop. │ count
@@ -1538,7 +1538,7 @@ SIMONE_TEBET    │    prop. │ count
 ────────────────────────────────────────
 
 - religion appears in d10
-  [[file:img/Screenshot from 2025-06-16 13-53-15.png]]
+  [[file:imgs/Screenshot from 2025-06-16 13-53-15.png]]
   - Proportion before any encoding:
     ────────────────────────────────────────
 D10             │    prop. │ count
@@ -1577,7 +1577,7 @@ Religion        │    prop. │ count
 96.0            │  11.69% │ 234
 99.0            │   0.20% │ 4
 ────────────────────────────────────────
-- race is in D12a [[file:img/Screenshot from 2025-06-16 14-02-44.png]]
+- race is in D12a [[file:imgs/Screenshot from 2025-06-16 14-02-44.png]]
 - 97,98 -> 99
 - proportion after recoding:
   ────────────────────────────────────────
@@ -1590,7 +1590,7 @@ Race            │    prop. │ count
 5.0             │   1.55% │ 31
 99.0            │   1.20% │ 24
 ────────────────────────────────────────
-- Ideology is in Q19 [[file:img/Screenshot from 2025-06-16 14-07-02.png]]
+- Ideology is in Q19 [[file:imgs/Screenshot from 2025-06-16 14-07-02.png]]
 -
 - 95,96,98 -> 99. proportion before recoding:
 
@@ -1641,9 +1641,9 @@ Ideology        │    prop. │ count
 99              │  15.69% │ 314
 ────────────────────────────────────────
 - PT is in Q18_5
-  [[file:img/Screenshot from 2025-06-16 14-27-13.png]]
+  [[file:imgs/Screenshot from 2025-06-16 14-27-13.png]]
 
-  [[file:img/Screenshot from 2025-06-16 14-27-56.png]]
+  [[file:imgs/Screenshot from 2025-06-16 14-27-56.png]]
 - Proportion before recoding:
   ────────────────────────────────────────
 Q18_5           │    prop. │ count
@@ -1692,7 +1692,7 @@ PT              │    prop. │ count
 99.0            │  17.74% │ 355
 ────────────────────────────────────────
 - Abortion appears in Q31_7
-  [[file:img/Screenshot from 2025-06-16 14-57-40.png]]
+  [[file:imgs/Screenshot from 2025-06-16 14-57-40.png]]
   - proportion before any recoding:
     ────────────────────────────────────────
 Q31_7           │    prop. │ count
