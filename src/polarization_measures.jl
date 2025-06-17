@@ -423,14 +423,16 @@ function compute_coherence_and_divergence(df::DataFrame, key::Symbol)
     results_distance = combine(grouped_df) do subdf
         group_avg_distance(subdf)  # returns (avg_distance = ..., group_coherence = ...)
     end
-
+    #println(results_distance)
     # 3) Compute group proportions, e.g. proportion of each group in the entire df
     group_proportions = proportionmap(df[!, key])  # your user-defined function
-
+    #println(" \n")
+    #println(group_proportions)
     # 4) Compute weighted coherence (sum of group_coherence * group proportion)
     #    or if your code uses the `avg_distance` column, adapt accordingly:
     coherence = weighted_coherence(results_distance, group_proportions, key)
-
+    #println(" \n")
+    #println("coherence: ", coherence)
     # 5) Compute the consensus ranking for each group
     #    (assumes `consensus_for_group(subdf)` returns (consensus_ranking = ...))
     grouped_consensus = combine(grouped_df) do subdf
@@ -439,7 +441,8 @@ function compute_coherence_and_divergence(df::DataFrame, key::Symbol)
 
     # 6) Compute the overall divergence measure
     divergence = overall_divergences(grouped_consensus, df, key)
-
+    #println(" \n")
+    #println("divergence: ", divergence)
     return coherence, divergence
 end
 

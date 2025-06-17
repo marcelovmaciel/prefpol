@@ -184,11 +184,152 @@ all_gm   = pp.save_or_load_all_group_metrics_per_year(profiles, f3)  # year ⇒ 
 
 
 
+all_meas[2006]
 
 # 2) Pick the scenario you care about (exact name must match one in each year):
+
+fi4 = pp.plot_scenario_year(2006, "lula_alckmin", f3, all_meas; variant="mice")
+
+fig5 = pp.plot_scenario_year(2006, "lula_alckmin", f3, all_meas; variant="random")
+
+fig6 = pp.plot_scenario_year(2006, "lula_alckmin", f3, all_meas; variant="zero")
+
 
 fig = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="mice")
 
 fig2 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="random")
 
 fig3 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="zero")
+
+
+fi7 = pp.plot_scenario_year(2018, "main_four", f3, all_meas; variant="mice")
+
+fig8 = pp.plot_scenario_year(2018, "main_four", f3, all_meas; variant="random")
+
+fig9 = pp.plot_scenario_year(2018, "main_four", f3, all_meas; variant="zero")
+
+
+
+f3[2006].data[1][1:20, :] 
+
+imps[2006].data[:zero][1][1:20,:]
+
+
+imps[2006].data[:mice][1][1:20,:] # the imputation doesn't seem incorrect! 
+
+
+profiles[2006]["lula_alckmin"][6][:zero][1][1:20,:]
+
+
+
+profiles[2006]["lula_alckmin"][6][:zero][1][1,:profile] # the linearization seems to be correct too 
+
+#pp.pp_proportions(f3[2006].data[1], f3[2006].cfg.candidates)
+
+# TODO: test with just two! 
+
+
+all_gm[2022]["lula_bolsonaro"][2][:PT][:mice]
+
+
+foo = profiles[2022]["lula_bolsonaro"][6][:mice][1]
+
+gdf = pp.groupby(foo, :PT)
+
+group_keys = [subdf[1, :PT] for subdf in gdf]
+
+    
+prop_map = pp.proportionmap(foo[!,:PT])
+
+
+
+
+  # 3) build profiles and consensus maps
+group_profiles = Dict(
+        k => collect(subdf.profile)
+        for (k, subdf) in zip(group_keys, gdf)
+    )
+
+
+
+
+    
+pp.get_consensus_ranking(group_profiles[0.0])
+
+pp.get_consensus_ranking(group_profiles[1.0])
+
+pp.get_consensus_ranking(group_profiles[99.])
+
+
+pp.proportionmap(group_profiles[0.0])
+
+pp.proportionmap(group_profiles[1.0])
+
+pp.proportionmap(group_profiles[99.])
+
+
+consensus_map = Dict(
+        k => pp.get_consensus_ranking(group_profiles[k])[2]
+        for k in group_keys
+    )
+
+# until here it works perfectly!
+# it seems to vindicate combining 99 with 1 ! (no, the proportions differ a lot!)
+
+
+
+
+consensus_df = pp.DataFrame()
+
+consensus_df[!, :PT]               = group_keys
+
+consensus_df[!, :consensus_ranking] = [consensus_map[k] for k in group_keys]
+
+consensus_df[!, :avg_distance]      = [
+        pp.group_avg_distance(subdf).avg_distance
+        for subdf in gdf
+    ]
+
+consensus_df[!, :proportion]        = [prop_map[k] for k in group_keys]
+
+
+avd = 1-pp.average_normalized_distance(group_profiles[1.0],consensus_map[1.0])
+
+
+    # 5) compute pairwise divergences
+m     = length(first(values(consensus_map)))
+
+klen  = length(group_keys)
+M     = zeros(Float64, klen, klen)
+for i in 1:klen, j in 1:klen
+        M[i,j] = i == j ? 0.0 :
+                 pp.pairwise_group_divergence(
+                   group_profiles[group_keys[i]],
+                   consensus_map[group_keys[j]],
+                   m
+                 )
+end
+
+# 6) build the divergence_df with proportion
+col_syms     = Symbol.(string.(group_keys))
+columns_dict = Dict(col_syms[j] => M[:,j] for j in 1:klen)
+divergence_df = pp.DataFrame(columns_dict)
+divergence_df[!, :PT]      = group_keys
+divergence_df[!, :proportion] = [prop_map[k] for k in group_keys]
+pp.select!(divergence_df, [:PT, :proportion, col_syms...])
+
+divergence_df
+
+
+
+
+
+
+foo2 = profiles[2022]["lula_bolsonaro"][4][:mice][1]
+
+
+pp.compute_coherence_and_divergence(foo2, :Ideology)
+
+
+
+all_gm[2022]["lula_bolsonaro"][4][:Ideology][:mice]
