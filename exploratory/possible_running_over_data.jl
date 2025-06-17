@@ -130,37 +130,65 @@ p2018 = save_or_load_profiles_for_year(2018, f3, imps)
 allp   = pp.save_or_load_all_profiles_per_year(f3, imps)
 
 # 3) Later, in a fresh REPL, just load one:
-p2022  = load_profiles_for_year(2022)
+p2022  = pp.load_profiles_for_year(2022)
+
+
+p2018 = pp.load_profiles_for_year(2018)
+
+p2022["lula_bolsonaro"]
+
+p2022["lula_bolsonaro"][2]
+
+pp.apply_all_measures_to_bts(p2022["lula_bolsonaro"][2])
+
+
+pp.apply_all_measures_to_bts(p2022["lula_bolsonaro"][6])
+
+meas2022 = pp.apply_measures_for_year(p2022)
+
+
+# 2) Batch for all years:
+all_meas = pp.save_or_load_all_measures_per_year(allp)
+
+# 3) Later, just load one:
+m2018 = pp.load_measures_for_year(2018)
+
+
+pp.compute_group_metrics(p2022["lula_bolsonaro"][4][:zero][1], :Ideology)
+
+
+pp.bootstrap_group_metrics(p2022["lula_bolsonaro"][6], :PT)
+
+pp.bootstrap_group_metrics(p2018["main_four"][6], :Religion)
 
 
 
-# ===============================================
-# from here I need to change 
-bc   = pp.make_bootstrap_cfg(elec)
-raw  = pp.load_election_data(elec)               # one call, no branches
-bt   = pp.build_bootstrapped_encoded_variants(bc)  
-# ===============================================
+profiles = pp.save_or_load_all_profiles_per_year(f3, imps)
+
+foo = pp.apply_group_metrics_all_years(allp, f3)
+
+all_gm = pp.save_or_load_all_group_metrics_per_year(allp, f3)
+
+
+
+# ================ trying to plot now 
 
 
 
 
-sel_bt = pp.build_boootstraped_scenarios(
-            years = [2018, 2022],
-            which = Dict(2018 => ["lula_bolsonaro", "main_four"], 2022 => ["lula_bolsonaro"])
-         )
-
-
-all_bt = pp.build_boootstraped_scenarios()         
-
-
-
-pp.apply_all_measures_to_encoded_bts(all_bt[2006]["no_forcing"].variants)
+f3       = pp.load_all_bootstraps()                             # year ⇒ (data,cfg,path)
+imps     = pp.load_all_imputed_bootstraps()                     # year ⇒ (data,cfg,path)
+profiles = pp.save_or_load_all_profiles_per_year(f3, imps)      # year ⇒ scenario ⇒ m ⇒ variant ⇒ [DF]
+all_meas = pp.save_or_load_all_measures_per_year(profiles)      # year ⇒ scenario ⇒ m ⇒ measure ⇒ variant ⇒ [values]
+all_gm   = pp.save_or_load_all_group_metrics_per_year(profiles, f3)  # year ⇒ scenario ⇒ m ⇒ dem ⇒ measure ⇒ variant ⇒ [values]
 
 
 
-all_bt[2006]
 
-# 3. compute evesry global measure for every m
-globals = pp.globals_over_m(all_bt[2006]["no_forcing"])
+# 2) Pick the scenario you care about (exact name must match one in each year):
 
-all_bt[2006]["no_forcing"].variants
+fig = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="mice")
+
+fig2 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="random")
+
+fig3 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, all_meas; variant="zero")

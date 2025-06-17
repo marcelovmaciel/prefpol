@@ -991,3 +991,61 @@ function load_group_metrics_for_year(year::Int;
     verbose && @info "Loaded group metrics for year $year ← $path"
     return metrics
 end
+
+
+
+
+# Plotting ============================================
+
+
+
+
+const CANDLOG = joinpath(INT_DIR, "candidate_set_warnings.log")
+
+
+function plot_scenario_year(
+    year,
+    scenario,
+    f3,
+    all_meas;
+    variant = "mice",
+    palette = Makie.wong_colors(),
+    figsize = (500,400),
+)
+    # lookups
+    f3_entry   = f3[year]
+    cfg        = f3_entry.cfg
+
+    reps_raw   = f3_entry.data
+    year_meas  = all_meas[year]
+    meas_map   = year_meas[scenario]
+    scen_obj   = findfirst(s->s.name==scenario, cfg.scenarios)
+
+    # recompute full candidate set exactly as in generate_profiles_for_year
+    sets = unique(map(df->
+        compute_candidate_set(df;
+            candidate_cols = cfg.candidates,
+            m              = cfg.max_candidates,
+            force_include  = cfg.scenarios[scen_obj].candidates),
+        reps_raw))
+    if length(sets)!=1
+        msg = "Year $year scenario $scenario: found $(length(sets)) distinct candidate sets; using first."
+        @warn msg
+        open(CANDLOG,"a") do io
+            println(io,"[$(Dates.format(now(),"yyyy-mm-dd HH:MM:SS"))] $msg")
+        end
+    end
+    full_list = sets[1]
+    candidate_label = describe_candidate_set(full_list)
+
+    # delegate to your Makie helper
+    fig = lines_alt_by_variant(
+        meas_map;
+        variants        = [variant],
+        palette         = palette,
+        figsize         = figsize,
+        year            = year,
+        candidate_label = candidate_label,
+    )
+    return fig
+end
