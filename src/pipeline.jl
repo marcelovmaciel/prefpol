@@ -610,34 +610,30 @@ function save_or_load_profiles_for_year(year::Int,
                                         verbose::Bool       = true)
 
     path = joinpath(dir, "profiles_$(year).jld2")
+
     if isfile(path) && !overwrite
         verbose && @warn "Profiles for $year already exist at $path; loading cache."
-        out = nothing
-        @load path out
-        return out
+        profiles = nothing
+        @load path profiles
+        return profiles
     end
 
     verbose && @info "Generating profiles for year $year…"
-    out = generate_profiles_for_year(year, f3[year], imps[year])
-    @save path profiles = out
-    # explicit cleanup
+    profiles = generate_profiles_for_year(year, f3[year], imps[year])
+    @save path profiles
     verbose && @info "Saved profiles for year $year → $path"
-    return out
+    return profiles
 end
 
-
-# ────────────────────────────────────────────────────────────────────────────────
 """
     save_or_load_all_profiles_per_year(f3, imps;
-                                       years    = nothing,
-                                       dir      = PROFILE_DIR,
-                                       overwrite= false,
-                                       verbose  = true)
-
-Apply `save_or_load_profiles_for_year` to each year in `f3` (and `imps`),
-optionally restricting to a subset `years::Int|Vector{Int}`.
-
-Returns an `OrderedDict{Int,profiles}`.
+                                       years     = nothing,
+                                       dir::AbstractString = PROFILE_DIR,
+                                       overwrite ::Bool     = false,
+                                       verbose   ::Bool     = true)
+                                       
+Iterate over each `year` in `f3` (or the subset `years`) and call
+`save_or_load_profiles_for_year`.  Returns an `OrderedDict{Int,profiles}`.
 """
 function save_or_load_all_profiles_per_year(f3,
                                             imps;
@@ -650,17 +646,21 @@ function save_or_load_all_profiles_per_year(f3,
              isa(years, Integer)      ? [years]              :
              sort(collect(years))
 
-    out = OrderedDict{Int,Any}()
+    all_profiles = OrderedDict{Int,Any}()
     for yr in wanted
-        haskey(f3, yr) || (@warn("No bootstrap for year $yr; skipping"); continue)
-        out[yr] = save_or_load_profiles_for_year(yr, f3, imps;
-                                                 dir       = dir,
-                                                 overwrite = overwrite,
-                                                 verbose   = verbose)
+        if !haskey(f3, yr)
+            @warn "No bootstrap for year $yr; skipping"
+            continue
+        end
+        all_profiles[yr] = save_or_load_profiles_for_year(
+                               yr, f3, imps;
+                               dir       = dir,
+                               overwrite = overwrite,
+                               verbose   = verbose)
     end
-    return out
-end
 
+    return all_profiles
+end
 
 # ────────────────────────────────────────────────────────────────────────────────
 """
@@ -682,8 +682,6 @@ function load_profiles_for_year(year::Int;
     verbose && @info "Loaded profiles for year $year ← $path"
     return profiles
 end
-
-
 
 
 
@@ -724,3 +722,272 @@ function apply_measures_for_year(
     return out
 end
 
+
+
+function apply_measures_all_years(
+    profiles_all::Dict{Int,Any};
+    years = nothing
+)::OrderedDict{Int,OrderedDict{String,OrderedDict{Int,Dict{Symbol,Dict{Symbol,Vector{Float64}}}}}}
+
+    wanted = years === nothing       ? sort(collect(keys(profiles_all))) :
+             isa(years, Integer)      ? [years]                      :
+             sort(collect(years))
+
+    all_out = OrderedDict{Int,Any}()
+    for yr in wanted
+        haskey(profiles_all, yr) || continue
+        @info "Applying measures for year $yr"
+        all_out[yr] = apply_measures_for_year(profiles_all[yr])
+    end
+    return all_out
+end
+
+
+const GLOBAL_MEASURE_DIR = joinpath(INT_DIR, "global_measures")
+mkpath(GLOBAL_MEASURE_DIR)   # ensure the directory exists
+
+"""
+    save_or_load_measures_for_year(year, profiles_year;
+                                   dir       = GLOBAL_MEASURE_DIR,
+                                   overwrite = false,
+                                   verbose   = true)
+
+For a single `year`:
+
+- If `dir/measures_YEAR.jld2` exists and `overwrite == false`, emits a warning and loads `measures` from disk.
+- Otherwise, runs `apply_measures_for_year(profiles_year)`, saves the result under the name `measures`, and returns it.
+"""
+function save_or_load_measures_for_year(year,
+                                        profiles_year;
+                                        dir::AbstractString = GLOBAL_MEASURE_DIR,
+                                        overwrite::Bool     = false,
+                                        verbose::Bool       = true)
+
+    path = joinpath(dir, "measures_$(year).jld2")
+
+    if isfile(path) && !overwrite
+        verbose && @warn "Global measures for $year already cached at $path; loading."
+        measures = nothing
+        @load path measures
+        return measures
+    end
+
+    verbose && @info "Computing global measures for year $year…"
+    measures = apply_measures_for_year(profiles_year)
+    @save path measures
+    verbose && @info "Saved global measures for year $year → $path"
+    return measures
+end
+
+"""
+    save_or_load_all_measures_per_year(profiles_all;
+                                      years     = nothing,
+                                      dir       = GLOBAL_MEASURE_DIR,
+                                      overwrite = false,
+                                      verbose   = true)
+
+Loop over each `year` in `profiles_all` (or the subset `years`) and call
+`save_or_load_measures_for_year`. Returns an `OrderedDict{Int,measures}`.
+"""
+function save_or_load_all_measures_per_year(profiles_all;
+                                            years     = nothing,
+                                            dir::AbstractString = GLOBAL_MEASURE_DIR,
+                                            overwrite ::Bool     = false,
+                                            verbose   ::Bool     = true)
+
+    wanted = years === nothing       ? sort(collect(keys(profiles_all))) :
+             isa(years, Integer)      ? [years]              :
+             sort(collect(years))
+
+    all_measures = OrderedDict{Int,Any}()
+    for yr in wanted
+        if !haskey(profiles_all, yr)
+            @warn "No profiles for year $yr; skipping measures."
+            continue
+        end
+        all_measures[yr] = save_or_load_measures_for_year(
+                               yr,
+                               profiles_all[yr];
+                               dir       = dir,
+                               overwrite = overwrite,
+                               verbose   = verbose)
+    end
+
+    return all_measures
+end
+
+"""
+    load_measures_for_year(year;
+                          dir     = GLOBAL_MEASURE_DIR,
+                          verbose = true) -> measures
+
+Load `dir/measures_YEAR.jld2` and return the `measures` object.
+Errors if missing.
+"""
+function load_measures_for_year(year::Int;
+                                dir::AbstractString = GLOBAL_MEASURE_DIR,
+                                verbose::Bool       = true)
+
+    path = joinpath(dir, "measures_$(year).jld2")
+    isfile(path) || error("No global measures file for $year at $path")
+    measures = nothing
+    @load path measures
+    verbose && @info "Loaded global measures for year $year ← $path"
+    return measures
+end 
+
+
+
+
+
+function apply_group_metrics_for_year(profiles_year, cfg)
+    # profiles_year: any dict-like scen ⇒ m ⇒ variant ⇒ Vector{DF}
+    # cfg.demographics: Vector of String or Symbol
+    out = OrderedDict()
+
+    for (scen, m_map) in profiles_year
+        scen_out = OrderedDict()
+        for (m, var_map) in m_map
+            dem_out = OrderedDict()
+            for dem in cfg.demographics
+                # ensure we pass a Symbol to your metrics function
+                dem_sym = dem isa Symbol ? dem : Symbol(dem)
+                @info "  → scenario=$scen, m=$m, demographic=$dem_sym"
+                dem_out[dem_sym] = bootstrap_group_metrics(var_map, dem_sym)
+            end
+            scen_out[m] = dem_out
+        end
+        out[scen] = scen_out
+    end
+
+    return out
+end
+
+
+function apply_group_metrics_all_years(profiles_all, f3; years=nothing)
+    # profiles_all: year ⇒ per‐year profiles (scenario ⇒ m ⇒ variant ⇒ DF)
+    # f3:          year ⇒ (data,cfg,path)
+    wanted = years === nothing ? sort(collect(keys(profiles_all))) :
+             isa(years, Integer) ? [years] :
+             sort(collect(years))
+
+    all_out = OrderedDict()
+    for yr in wanted
+        haskey(profiles_all, yr) || continue
+        haskey(f3, yr)            || continue
+
+        @info "Applying group metrics for year $yr"
+        profiles_year = profiles_all[yr]
+        cfg = f3[yr].cfg
+
+        all_out[yr] = apply_group_metrics_for_year(profiles_year, cfg)
+    end
+
+    return all_out
+end
+
+
+const GROUP_DIR = joinpath(INT_DIR, "group_metrics")
+mkpath(GROUP_DIR)   # ensure it exists
+
+"""
+    save_or_load_group_metrics_for_year(year,
+                                        profiles_year,
+                                        f3_entry;
+                                        dir       = GROUP_DIR,
+                                        overwrite = false,
+                                        verbose   = true)
+
+For a single `year`:
+
+- If `dir/group_metrics_YEAR.jld2` exists and `overwrite==false`, emits a warning and loads `metrics` from disk.
+- Otherwise, runs `apply_group_metrics_for_year(profiles_year, f3_entry.cfg)`, saves the result under the name `metrics`, and returns it.
+"""
+function save_or_load_group_metrics_for_year(year::Int,
+                                             profiles_year,
+                                             f3_entry;
+                                             dir::AbstractString = GROUP_DIR,
+                                             overwrite::Bool     = false,
+                                             verbose::Bool       = true)
+
+    path = joinpath(dir, "group_metrics_$(year).jld2")
+
+    if isfile(path) && !overwrite
+        verbose && @warn "Group metrics for $year already exist at $path; loading cache."
+        metrics = nothing
+        @load path metrics
+        return metrics
+    end
+
+    verbose && @info "Computing group metrics for year $year…"
+    metrics = apply_group_metrics_for_year(profiles_year, f3_entry.cfg)
+    @save path metrics
+    verbose && @info "Saved group metrics for year $year → $path"
+    return metrics
+end
+
+
+"""
+    save_or_load_all_group_metrics_per_year(profiles_all, f3;
+                                            years     = nothing,
+                                            dir       = GROUP_DIR,
+                                            overwrite = false,
+                                            verbose   = true)
+                                            
+Iterate over each `year` in `profiles_all` (or the subset `years`) and call
+`save_or_load_group_metrics_for_year`. Returns an `OrderedDict{Int,metrics}`.
+"""
+function save_or_load_all_group_metrics_per_year(profiles_all,
+                                                 f3;
+                                                 years     = nothing,
+                                                 dir::AbstractString = GROUP_DIR,
+                                                 overwrite ::Bool     = false,
+                                                 verbose   ::Bool     = true)
+
+    wanted = years === nothing       ? sort(collect(keys(profiles_all))) :
+             isa(years, Integer)      ? [years]              :
+             sort(collect(years))
+
+    all_metrics = OrderedDict{Int,Any}()
+    for yr in wanted
+        if !haskey(profiles_all, yr)
+            @warn "No profiles for year $yr; skipping"
+            continue
+        end
+        if !haskey(f3, yr)
+            @warn "No bootstrap/config for year $yr; skipping"
+            continue
+        end
+
+        all_metrics[yr] = save_or_load_group_metrics_for_year(
+                              yr,
+                              profiles_all[yr],
+                              f3[yr];
+                              dir       = dir,
+                              overwrite = overwrite,
+                              verbose   = verbose)
+    end
+
+    return all_metrics
+end
+
+
+"""
+    load_group_metrics_for_year(year;
+                                dir     = GROUP_DIR,
+                                verbose = true) -> metrics
+
+Load `dir/group_metrics_YEAR.jld2` and return the `metrics` object.
+Errors if missing.
+"""
+function load_group_metrics_for_year(year::Int;
+                                     dir::AbstractString = GROUP_DIR,
+                                     verbose::Bool       = true)
+
+    path = joinpath(dir, "group_metrics_$(year).jld2")
+    isfile(path) || error("No group metrics file for $year at $path")
+    metrics = nothing
+    @load path metrics
+    verbose && @info "Loaded group metrics for year $year ← $path"
+    return metrics
+end

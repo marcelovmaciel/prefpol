@@ -511,18 +511,20 @@ end
 
 
 
-function compute_group_metrics(df::DataFrame, demo::Symbol)
+function compute_group_metrics(df::DataFrame, demo)
     g = groupby(df, demo)
     results_distance = combine(g) do subdf
         group_avg_distance(subdf)
     end
-
+ 
     prop = proportionmap(df[!, demo])
     C = weighted_coherence(results_distance, prop, demo)
 
     consensus = combine(g) do subdf
         consensus_for_group(subdf)
     end
+
+  
     D = overall_divergences(consensus, df, demo)
 
     return C, D
@@ -633,7 +635,7 @@ return out
 end
 
 
-function bootstrap_group_metrics(bt_profiles::Dict, demo::Symbol)
+function bootstrap_group_metrics(bt_profiles, demo)
     result = Dict{Symbol, Dict{Symbol, Vector{Float64}}}()
 
     for (variant, reps) in bt_profiles
