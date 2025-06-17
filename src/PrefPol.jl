@@ -25,6 +25,8 @@ import PyPlot as plt
 import Colors
 using TextWrap
 import OrderedCollections
+using OrderedCollections: OrderedDict
+using Logging
 
 using JLD2, Arrow, TOML          # ← only for the helpers at bottom
 # the measure with all the 13 candidates will probably be utterly meaningless!! 

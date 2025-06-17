@@ -435,3 +435,292 @@ function load_all_imputed_bootstraps(; years  = nothing,
 
     return out
 end
+
+
+# TODO: later, write a variant that takes just imp and config
+# and loads f3 from disk, cakculate the sets, cleans it from disk, and proceeds
+
+
+const CANDLOG = joinpath(INT_DIR, "candidate_set_warnings.log")
+
+function generate_profiles_for_year(year::Int,
+                                    f3_entry::NamedTuple,
+                                    imps_entry::NamedTuple)
+
+    cfg            = f3_entry.cfg
+    reps_raw       = f3_entry.data             # Vector{DataFrame}
+    variants_dict  = imps_entry.data           # Dict{Symbol,Vector{DataFrame}}
+    m_values       = cfg.m_values_range
+
+    result = OrderedDict{String, OrderedDict{Int,OrderedDict{Symbol,Vector{DataFrame}}}}()
+
+    for scen in cfg.scenarios
+        # —————————————————————————————————————————————————————
+        # 1) compute the “full” candidate set once (m = max_candidates)
+        sets = unique(map(df ->
+            compute_candidate_set(df;
+                candidate_cols = cfg.candidates,
+                m              = cfg.max_candidates,
+                force_include  = scen.candidates),
+          reps_raw))
+
+        if length(sets) != 1
+            msg = "Year $year, scenario $(scen.name): " *
+                  "found $(length(sets)) distinct candidate sets; " *
+                  "using the first. Sets: $sets"
+            @warn msg
+
+            # append to disk log
+            open(CANDLOG, "a") do io
+                ts = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
+                println(io, "[$ts] $msg")
+            end
+        end
+
+        full_list = sets[1]   # pick the first, regardless
+
+        # —————————————————————————————————————————————————————
+        # 2) for each m, trim & build profile DFs
+        m_map = OrderedDict{Int, OrderedDict{Symbol,Vector{DataFrame}}}()
+        for m in m_values
+            trimmed = first(full_list, m)
+            var_map = OrderedDict{Symbol,Vector{DataFrame}}()
+            for (variant, reps_imp) in variants_dict
+                profiles = Vector{DataFrame}(undef, length(reps_imp))
+                for (i, df_imp) in enumerate(reps_imp)
+                    profiles[i] = profile_dataframe(
+                                      df_imp;
+                                      score_cols = trimmed,
+                                      demo_cols  = cfg.demographics)
+                end
+                var_map[variant] = profiles
+            end
+            m_map[m] = var_map
+        end
+
+        result[scen.name] = m_map
+    end
+
+    return result
+end
+
+
+function generate_all_profiles(f3::OrderedDict{Int,NamedTuple},
+                               imps::OrderedDict{Int,NamedTuple};
+                               years = nothing)
+
+    wanted = years === nothing       ? keys(f3) :
+             isa(years, Integer)      ? [years]      :
+             years
+
+    all_profiles = OrderedDict{Int,Any}()
+    for yr in sort(collect(wanted))
+        f3_entry  = f3[yr]
+        imps_entry = imps[yr]
+        @info "Building profiles for year $yr"
+        all_profiles[yr] = generate_profiles_for_year(yr, f3_entry, imps_entry)
+    end
+    return all_profiles
+end
+
+
+
+const PROFILE_FILE = joinpath(INT_DIR, "all_profiles.jld2")
+
+"""
+    save_or_load_all_profiles(f3, imps;
+                              path         = PROFILE_FILE,
+                              overwrite    = false,
+                              verbose      = true,
+                              years        = nothing)
+
+If `path` already exists *and* `overwrite=false`, emits a warning,
+loads the saved `profiles` object, and returns it.
+
+Otherwise, calls `generate_all_profiles(f3, imps; years=years)`,
+saves the result to `path`, and returns it.
+"""
+function save_or_load_all_profiles(f3, imps;
+                                   path      ::AbstractString = PROFILE_FILE,
+                                   overwrite ::Bool           = false,
+                                   verbose   ::Bool           = true,
+                                   years               = nothing)
+
+    # ensure directory
+    mkpath(dirname(path))
+
+    if isfile(path) && !overwrite
+        verbose && @warn "Profiles file already exists at $path; loading it instead of regenerating."
+        profiles = nothing
+        @load path profiles
+        return profiles
+    end
+
+    # generate + save
+    verbose && @info "Generating all profiles (this may take a while)…"
+    profiles = generate_all_profiles(f3, imps; years = years)
+
+    @save path profiles
+    verbose && @info "Saved all profiles to $path"
+    return profiles
+end
+
+
+"""
+    load_all_profiles(; path = PROFILE_FILE, verbose = true) -> OrderedDict
+
+Load the `profiles` object from disk at `path`. Throws an error if the file
+does not exist.
+"""
+function load_all_profiles(; path    ::AbstractString = PROFILE_FILE,
+                            verbose ::Bool           = true)
+
+    isfile(path) || error("No profiles file found at $path -- run `save_or_load_all_profiles` first.")
+    profiles = nothing
+    @load path profiles
+    verbose && @info "Loaded profiles from $path"
+    return profiles
+end
+
+
+
+
+const PROFILE_DIR = joinpath(INT_DIR, "profiles")
+mkpath(PROFILE_DIR)   # ensure it exists
+
+# ────────────────────────────────────────────────────────────────────────────────
+"""
+    save_or_load_profiles_for_year(year, f3, imps;
+                                  dir       = PROFILE_DIR,
+                                  overwrite = false,
+                                  verbose   = true)
+
+For the given `year`, if `dir/profiles_YEAR.jld2` exists and `overwrite=false`,
+issues a warning and loads it.  Otherwise:
+
+  • Calls `generate_profiles_for_year(year, f3[year], imps[year])`  
+  • Saves the result as `profiles` in `dir/profiles_YEAR.jld2`  
+  • Returns the `profiles` object.
+"""
+function save_or_load_profiles_for_year(year::Int,
+                                        f3,
+                                        imps;
+                                        dir::AbstractString = PROFILE_DIR,
+                                        overwrite::Bool     = false,
+                                        verbose::Bool       = true)
+
+    path = joinpath(dir, "profiles_$(year).jld2")
+    if isfile(path) && !overwrite
+        verbose && @warn "Profiles for $year already exist at $path; loading cache."
+        out = nothing
+        @load path out
+        return out
+    end
+
+    verbose && @info "Generating profiles for year $year…"
+    out = generate_profiles_for_year(year, f3[year], imps[year])
+    @save path profiles = out
+    # explicit cleanup
+    verbose && @info "Saved profiles for year $year → $path"
+    return out
+end
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+"""
+    save_or_load_all_profiles_per_year(f3, imps;
+                                       years    = nothing,
+                                       dir      = PROFILE_DIR,
+                                       overwrite= false,
+                                       verbose  = true)
+
+Apply `save_or_load_profiles_for_year` to each year in `f3` (and `imps`),
+optionally restricting to a subset `years::Int|Vector{Int}`.
+
+Returns an `OrderedDict{Int,profiles}`.
+"""
+function save_or_load_all_profiles_per_year(f3,
+                                            imps;
+                                            years     = nothing,
+                                            dir::AbstractString = PROFILE_DIR,
+                                            overwrite ::Bool     = false,
+                                            verbose   ::Bool     = true)
+
+    wanted = years === nothing       ? sort(collect(keys(f3))) :
+             isa(years, Integer)      ? [years]              :
+             sort(collect(years))
+
+    out = OrderedDict{Int,Any}()
+    for yr in wanted
+        haskey(f3, yr) || (@warn("No bootstrap for year $yr; skipping"); continue)
+        out[yr] = save_or_load_profiles_for_year(yr, f3, imps;
+                                                 dir       = dir,
+                                                 overwrite = overwrite,
+                                                 verbose   = verbose)
+    end
+    return out
+end
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+"""
+    load_profiles_for_year(year;
+                            dir     = PROFILE_DIR,
+                            verbose = true) -> profiles
+
+Loads `dir/profiles_YEAR.jld2` and returns the stored `profiles` object.
+Errors if missing.
+"""
+function load_profiles_for_year(year::Int;
+                                dir::AbstractString = PROFILE_DIR,
+                                verbose::Bool       = true)
+
+    path = joinpath(dir, "profiles_$(year).jld2")
+    isfile(path) || error("No profiles JLD2 found for $year at $path")
+    profiles = nothing
+    @load path profiles
+    verbose && @info "Loaded profiles for year $year ← $path"
+    return profiles
+end
+
+
+
+
+
+
+"""
+    apply_measures_for_year(profiles_year::OrderedDict)
+
+Given `profiles_year` produced by `save_or_load_profiles_for_year`, return
+
+    OrderedDict{String,OrderedDict{Int,Dict{Symbol,Dict{Symbol,Vector{Float64}}}}}
+
+so that
+
+    result[scenario][m][measure][variant]  # → Vector{Float64}
+
+Internally it just does:
+
+    measure_map = apply_all_measures_to_bts(var_map)
+
+for each (scenario → m → var_map).
+"""
+function apply_measures_for_year(
+    profiles_year::OrderedDict{String,<:Any}
+)::OrderedDict{String,OrderedDict{Int,Dict{Symbol,Dict{Symbol,Vector{Float64}}}}}
+
+    out = OrderedDict{String,OrderedDict{Int,Dict{Symbol,Dict{Symbol,Vector{Float64}}}}}()
+
+    for (scen, m_map) in profiles_year
+        scen_out = OrderedDict{Int,Dict{Symbol,Dict{Symbol,Vector{Float64}}}}()
+        for (m, var_map) in m_map
+            # var_map :: Dict{Symbol, Vector{DataFrame}}
+            measures = apply_all_measures_to_bts(var_map)
+            scen_out[m] = measures
+        end
+        out[scen] = scen_out
+    end
+
+    return out
+end
+
