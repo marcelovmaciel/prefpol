@@ -1541,7 +1541,7 @@ end =#
     return fig
 end =#
 
-
+#= 
 function compare_demographic_across_scenarios(
         results_all::Dict,
         scenario_vec::Vector{Tuple{Int,String}};
@@ -1657,7 +1657,7 @@ function compare_demographic_across_scenarios(
 
     resize_to_layout!(fig)
     return fig
-end
+end =#
 
 function compare_demographic_across_scenariosy(
         results_all::Dict,

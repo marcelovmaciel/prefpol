@@ -1049,3 +1049,368 @@ function plot_scenario_year(
     )
     return fig
 end
+
+
+
+# ──────────────────────────────────────────────────────────────────
+# helper: replicate the candidate-set logic from generate_profiles…
+# ──────────────────────────────────────────────────────────────────
+function _full_candidate_list(cfg, reps_raw, scen_obj)
+    sets = unique(map(df ->
+        compute_candidate_set(df;
+            candidate_cols = cfg.candidates,
+            m              = cfg.max_candidates,
+            force_include  = scen_obj.candidates),
+        reps_raw))
+    length(sets) != 1 && @warn "Multiple candidate sets; using first"
+    return sets[1]
+end
+
+
+
+#= # ──────────────────────────────────────────────────────────────────
+"""
+    plot_group_demographics(
+        year::Int,
+        scenario::String,
+        f3,              # Dict year ⇒ (data,cfg,…)
+        all_gm,          # Dict year ⇒ scenario ⇒ m ⇒ dem ⇒ variant ⇒ measure ⇒ Vector
+        variant::Symbol  = :mice;
+        measures::Vector{Symbol} = [:C, :D, :G],
+        figsize::Tuple{Int,Int}  = (1200, 800),
+    ) → Figure
+
+Draws a grid (3 × ⌈n/3⌉) of panels — one per demographic — each showing
+the three group-metrics C, D, G with 50 % & 95 % ribbons under the chosen
+`variant`.  A two-line header gives year, bootstrap count, m-range, and
+the human-readable candidate set.  A single legend (rightmost column)
+lists only the measures.
+
+Assumes `Makie.wong_colors()` is available (Color 1 → C, 3 → D, 2 → G).
+"""
+function plot_group_demographics(
+    year::Int,
+    scenario::String,
+    f3,
+    all_gm;
+    variant ::Symbol       = :mice,
+    measures::Vector{Symbol}= [:C, :D, :G],
+    figsize ::Tuple{Int,Int}= (1200,800),
+)
+    # ── look-ups ─────────────────────────────────────────────────────────
+    f3ent   = f3[year]
+    cfg     = f3ent.cfg
+    reps    = f3ent.data
+    scenobj = only(filter(s->s.name==scenario, cfg.scenarios))
+
+    gm      = all_gm[year][scenario]                      # m ⇒ dem ⇒ …
+    m_vals  = sort(collect(keys(gm)))                     # Vector{Int}
+    dems    = cfg.demographics                            # Vector{String}
+    nd      = length(dems)
+
+    # ── header info ─────────────────────────────────────────────────────
+    cand_lbl = describe_candidate_set(_full_candidate_list(cfg, reps, scenobj))
+
+    
+    n_boot     = f3ent.cfg.n_bootstrap
+
+    header1 = "Year = $year • $n_boot bootstraps • m = $(first(m_vals)) … $(last(m_vals))"
+    header2 = "$cand_lbl"
+
+    # ── grid layout dims (3×…) ──────────────────────────────────────────
+    ncols  = 3
+    nrows  = ceil(Int, nd / ncols)
+    header_rows = 2          # we occupy first two rows with labels
+
+    # ── colour per MEASURE (same in every panel) ───────────────────────
+    wong = Makie.wong_colors()
+    palette = Dict(:C => wong[1], :D => wong[3], :G => wong[2])
+
+    # ── create Figure & headers ────────────────────────────────────────
+    fig = Figure(resolution = figsize)
+    fig[1, 1:ncols] = Label(fig, header1; fontsize=18, halign=:left)
+    fig[2, 1:ncols] = Label(fig, header2; fontsize=14, halign=:left)
+
+    # collect first Lines object per measure for the legend
+    legend_handles = Dict{Symbol, Lines}()
+
+    xs = Float32.(m_vals)
+
+    for (idx, dem) in enumerate(dems)
+        r = header_rows + fld(idx-1, ncols) + 1
+        c = mod(idx-1, ncols) + 1
+
+        ax = Axis(fig[r, c];
+                  title   = dem,
+                  xlabel  = "number of alternatives",
+                  ylabel  = idx ≤ ncols ? "value" : "")
+
+        for meas in measures
+            # bootstrap arrays along m
+            arrays = [ begin
+                         vm = gm[m][Symbol(dem)]
+                         vals = meas == :G ?
+                                (sqrt.(vm[variant][:C] .* vm[variant][:D])) : vm[variant][meas]
+                         Float32.(collect(vals))
+                       end for m in m_vals ]
+
+            μ   = Float32.(mean.(arrays))
+            p25 = Float32.(quantile.(arrays, 0.25f0))
+            p75 = Float32.(quantile.(arrays, 0.75f0))
+            p05 = Float32.(quantile.(arrays, 0.05f0))
+            p95 = Float32.(quantile.(arrays, 0.95f0))
+
+            col = palette[meas]
+            band!(ax, xs, p05, p95; color=(col,0.12), linewidth=0)   # 95 %
+            band!(ax, xs, p25, p75; color=(col,0.25), linewidth=0)   # 50 %
+            ln = lines!(ax, xs, μ; color=col, linestyle=:dot, linewidth=2)
+
+            legend_handles[meas] = get!(legend_handles, meas, ln)
+        end
+    end
+
+    # ── one legend in the rightmost column ─────────────────────────────
+    Legend(fig[header_rows+1:header_rows+nrows, ncols+1],
+           [legend_handles[m] for m in measures],
+           ["$m • $(variant)" for m in measures];
+           orientation = :vertical,
+           tellheight  = false)
+
+    return fig
+end 
+ =#
+"""
+    plot_group_demographics_lines(
+        all_gm, f3, year, scenario;
+        variants  = [:zero, :random, :mice],
+        measures  = [:C, :D, :G],
+        maxcols   = 3,
+        n_yticks  = 5,
+        palette   = Makie.wong_colors(),
+) → Figure
+
+One panel per demographic; **x = number of alternatives (m)**.
+For every *(measure, variant)* pair the panel shows
+
+* a translucent band between Q25 and Q75
+* a line for the mean.
+
+The title and candidate list match the original
+`plot_group_demographics`, but the layout and styling come from
+`lines_group_measures_over_m`.
+"""
+function plot_group_demographics_lines(
+        all_gm,
+        f3,
+        year::Int,
+        scenario::String;
+        variants      = [:zero, :random, :mice],
+        measures      = [:C, :D, :G],
+        maxcols::Int  = 3,
+        n_yticks::Int = 5,
+        palette       = Makie.wong_colors(), clist_size = 60,
+)
+
+    # ── data slice & metadata ──────────────────────────────────────────
+    gm            = all_gm[year][scenario]                  # m ⇒ (dem ⇒ …)
+    m_values_int  = sort(collect(keys(gm)))                 # Vector{Int}
+    xs_m          = Float32.(m_values_int)                  # Makie prefers Float32
+    demographics  = f3[year].cfg.demographics
+    n_demo        = length(demographics)
+
+    scenobj = only(filter(s->s.name==scenario, f3[year].cfg.scenarios))
+    cand_lbl = describe_candidate_set(
+                 _full_candidate_list(f3[year].cfg, f3[year].data, scenobj))
+
+    # any slice gives the bootstrap length
+    sample_slice = gm[first(m_values_int)][Symbol(first(demographics))]
+    n_boot       = length(sample_slice[variants[1]][:C])
+
+    # ── colour / style dictionaries ────────────────────────────────────
+    measure_cols   = Dict(measures[i] => palette[i] for i in eachindex(measures))
+    variant_styles = Dict(:zero => :solid, :random => :dash, :mice => :dot)
+
+    # ── figure geometry ────────────────────────────────────────────────
+    ncol       = min(maxcols, n_demo)
+    nrow       = ceil(Int, n_demo / ncol)
+    title_txt  = "Year $(year) • $(n_boot) bootstraps • m = $(first(m_values_int)) … $(last(m_values_int))"
+    fig_width  = max(300*ncol, 10*length(title_txt) + 60)   # widen if title is long
+    fig_height = 300*nrow
+
+    fig = Figure(resolution = (fig_width, fig_height))
+    rowgap!(fig.layout, 24);  colgap!(fig.layout, 24)
+
+    # headers
+    fig[1, 1:ncol] = Label(fig, title_txt;  fontsize = 20, halign = :left)
+    fig[2, 1:ncol] = Label(fig,  join(TextWrap.wrap("$cand_lbl"; width=clist_size)); fontsize = 14, halign = :left)
+    header_rows = 2
+
+    # legend collectors
+    legend_handles = Any[]; legend_labels = String[]
+
+    # ── main panels ────────────────────────────────────────────────────
+    for (idx, demo) in enumerate(demographics)
+        r, c = fldmod1(idx, ncol)
+        ax = Axis(fig[r + header_rows, c];
+                  title  = demo,
+                  xlabel = "number of alternatives",
+                  ylabel = "value",
+                  xticks = (xs_m, string.(m_values_int)))            # avoid stretch
+
+        allvals = Float32[]                        # for nice y-ticks
+
+        for meas in measures, var in variants
+            vals_per_m = map(m_values_int) do m
+                v = gm[m][Symbol(demo)][var]
+                arr = meas === :G ? sqrt.(v[:C] .* v[:D]) : v[meas]
+                Float32.(arr)
+            end
+
+            append!(allvals, vcat(vals_per_m...))
+
+            meds32 = Float32.(mean.(vals_per_m))
+            q25s32 = Float32.(map(x -> quantile(x, 0.25f0), vals_per_m))
+            q75s32 = Float32.(map(x -> quantile(x, 0.75f0), vals_per_m))
+
+            col = measure_cols[meas]
+            sty = variant_styles[var]
+
+            band!(ax, xs_m, q25s32, q75s32; color = (col, 0.20), linewidth = 0)
+            ln = lines!(ax, xs_m, meds32;        color = col, linestyle = sty, linewidth = 2)
+
+            if idx == 1
+                push!(legend_handles, ln)
+                push!(legend_labels, "$(meas) • $(var)")
+            end
+        end
+
+        # tidy y-ticks
+        y_min, y_max = extrema(allvals)
+        ticks  = collect(range(y_min, y_max; length = n_yticks))
+        ax.yticks[] = (ticks, string.(round.(ticks; digits = 3)))
+    end
+
+    # ── legend column ──────────────────────────────────────────────────
+    Legend(fig[header_rows+1 : header_rows+nrow, ncol+1],
+           legend_handles, legend_labels; tellheight = false)
+
+    # now that the legend is placed, column ncol+1 exists → shrink it
+    colsize!(fig.layout, ncol + 1, Relative(0.25))
+
+    resize_to_layout!(fig)
+    return fig
+end
+
+
+
+
+function compare_demographic_across_scenarios(
+        all_gm,
+        f3,
+        scenario_vec::Vector{Tuple{Int,String}};
+        demographic::String,
+        variant::Symbol           = :mice,
+        measures::Vector{Symbol}  = [:C, :D, :G],
+        palette::Vector           = Makie.wong_colors()[1:3],
+        n_yticks::Int             = 5,
+        base_width::Int           = 400,
+        base_height::Int          = 360
+)
+
+    # ── colour helper (lighten / darken without unqualified imports) ──
+    ΔL = Dict(:C=>0, :D=>+20, :G=>-15)
+    function shade(rgb::Colors.RGB, meas)
+        lch = convert(Colors.LCHab, rgb)
+        newL = clamp(lch.l + ΔL[meas], 0, 100)
+        convert(Colors.RGB, Colors.LCHab(newL, lch.c, lch.h))
+    end
+
+    base_rgbs = Colors.RGB.(palette[1:length(measures)])
+    measure_cols = Dict(measures[i] => shade(base_rgbs[i], measures[i])
+                        for i in eachindex(measures))
+
+    # ── slice metadata from the first scenario ────────────────────────
+    y0, s0   = scenario_vec[1]
+    gm0      = all_gm[y0][s0]
+    m_vals   = sort(collect(keys(gm0)))           # Int
+    xs_m     = Float32.(m_vals)
+    n_panels = length(scenario_vec)
+    demo_sym = Symbol(demographic)
+
+    n_boot = length(gm0[first(m_vals)][Symbol(demographic)][variant][:C])
+
+    # helper for candidate label
+    candidate_label(y, s) = begin
+        cfg  = f3[y].cfg
+        scenobj = only(filter(t -> t.name == s, cfg.scenarios))
+        describe_candidate_set(_full_candidate_list(cfg, f3[y].data, scenobj))
+    end
+
+    # ── global y-limits ───────────────────────────────────────────────
+    global_all = Float32[]
+    for (yr, sc) in scenario_vec, meas in measures, m in m_vals
+        v = all_gm[yr][sc][m][Symbol(demographic)][variant]
+        arr = meas === :G ? sqrt.(v[:C] .* v[:D]) : v[meas]
+        append!(global_all, Float32.(arr))
+    end
+    y_min, y_max = extrema(global_all)
+    y_ticks = collect(range(y_min, y_max; length = n_yticks))
+
+    # ── figure scaffold (3 rows) ──────────────────────────────────────
+    fig = Figure(resolution = (base_width*n_panels, base_height),
+                 layout = (3, n_panels))
+    rowgap!(fig.layout, 20); colgap!(fig.layout, 30)
+
+    header_txt = "$demographic • number of alternatives = $(first(m_vals))…$(last(m_vals)) • $n_boot bootstraps"
+    fig[1, 1:n_panels] = Label(fig, header_txt; fontsize = 22, halign = :center)
+
+    legend_handles = Lines[]; legend_labels = String[]
+
+    # ── panel loop ────────────────────────────────────────────────────
+    for (i, (yr, sc)) in enumerate(scenario_vec)
+        gm_slice = all_gm[yr][sc]
+        wrapped_title = join(TextWrap.wrap("Year $yr — $(candidate_label(yr, sc))"; width = 50))
+
+        ax = Axis(fig[2, i];
+                  title     = wrapped_title,
+                    titlefont = "sans",
+                  titlesize = 14,
+                  titlegap  = 8,
+                  xlabel    = "number of alternatives",
+                  ylabel    = "value",
+                  xticks    = (xs_m, string.(m_vals)),
+                  limits    = (nothing, (y_min, y_max)),
+                  yticks    = (y_ticks, string.(round.(y_ticks; digits=2))))
+
+        for meas in measures
+            col = measure_cols[meas]
+            meds = Float32[]; q25s = Float32[]; q75s = Float32[]; p05s = Float32[]; p95s = Float32[]
+
+            for m in m_vals
+                v = gm_slice[m][Symbol(demographic)][variant]
+                vals32 = Float32.(meas === :G ? sqrt.(v[:C] .* v[:D]) : v[meas])
+
+                push!(meds, median(vals32))
+                push!(q25s, quantile(vals32, 0.25f0)); push!(q75s, quantile(vals32, 0.75f0))
+                push!(p05s, quantile(vals32, 0.05f0)); push!(p95s, quantile(vals32, 0.95f0))
+            end
+
+            band!(ax, xs_m, p05s, p95s; color = (col, 0.12), linewidth = 0)
+            band!(ax, xs_m, q25s, q75s; color = (col, 0.25), linewidth = 0)
+            ln = lines!(ax, xs_m, meds; color = col, linewidth = 2)
+
+            if i == 1
+                push!(legend_handles, ln)
+                push!(legend_labels, string(meas))
+            end
+        end
+    end
+
+    fig[3, 1:n_panels] = Legend(fig, legend_handles, legend_labels;
+                                orientation = :horizontal,
+                                framevisible = false,
+                                halign = :center)
+
+    resize_to_layout!(fig)
+    return fig
+end
