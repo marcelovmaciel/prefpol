@@ -1558,7 +1558,7 @@ D10             │    prop. │ count
 100.0           │   0.25% │ 5
 101.0           │   0.05% │ 1
 102.0           │   0.40% │ 8
-- I recoded 99, 100, 101, 102 -> 95 (other religions); 96, 97-> 96 (no religion); and 97, 98 -> 99 (missing)
+- I recoded 99, 100, 101, 102 -> 95 (other religions); 96-> 97 (no religion); and  98 -> 99 (missing)
 - Proportion after recoding:
   ────────────────────────────────────────
 Religion        │    prop. │ count

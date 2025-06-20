@@ -57,7 +57,8 @@ include("mallows_play.jl")
 include("plotting_bts.jl")
 include("summary_measures.jl")
 include("pipeline.jl")
-include("newplotting.jl")
+
+#include("newplotting.jl")
 
 export project_root, eseb_22, CANDIDATOS_eseb2022
 

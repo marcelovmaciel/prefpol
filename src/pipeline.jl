@@ -505,6 +505,94 @@ function generate_profiles_for_year(year::Int,
 end
 
 
+#= 
+"""Lazy loader that accepts a DataFrame *or* a reference."""
+load_df(ref) = ref isa DataFrame ? ref : load_dataframe(ref)  # write this once
+
+function generate_profiles_for_year(year,
+                                    f3_entry,
+                                    imps_entry)
+
+    cfg            = f3_entry.cfg
+    reps_raw_refs  = f3_entry.data             # Vector{DataFrame|Handle}
+    variants_refs  = imps_entry.data           # Dict{Symbol,Vector{DataFrame|Handle}}
+    m_values       = cfg.m_values_range
+
+    result = OrderedDict{String, OrderedDict{Int,OrderedDict{Symbol,Vector{DataFrame}}}}()
+
+    for scen in cfg.scenarios
+        # ────────────────────────────────────────────────────────────────
+        # 1) Determine (once) the reference candidate set, streaming rep-by-rep
+        # ────────────────────────────────────────────────────────────────
+        ref_set   = nothing
+        divergent = false
+
+        for ref in reps_raw_refs
+            df   = load_df(ref)                                   # ← lazy fetch
+            cset = compute_candidate_set(df;
+                       candidate_cols = cfg.candidates,
+                       m              = cfg.max_candidates,
+                       force_include  = scen.candidates)
+
+            if ref_set === nothing
+                ref_set = cset
+            elseif ref_set != cset
+                divergent = true
+                break
+            end
+            GC.gc()                                               # drop df ASAP
+        end
+
+        if divergent
+            sets = map(refs -> compute_candidate_set(load_df(refs);
+                                  candidate_cols = cfg.candidates,
+                                  m              = cfg.max_candidates,
+                                  force_include  = scen.candidates),
+                       first(reps_raw_refs, 7))                    # cheap summary
+            msg = "Year $year, scenario $(scen.name): found ≥2 distinct candidate sets; using the first. Sets: $(sets)"
+            @warn msg
+            open(CANDLOG, "a") do io
+                println(io, "[$(Dates.format(now(), "yyyy-mm-dd HH:MM:SS"))] $msg")
+            end
+        end
+
+        full_list = ref_set
+        # ────────────────────────────────────────────────────────────────
+        # 2) Build the profiles one replicate at a time
+        # ────────────────────────────────────────────────────────────────
+        m_map = OrderedDict{Int, OrderedDict{Symbol,Vector{DataFrame}}}()
+
+        for m in m_values
+            trimmed   = first(full_list, m)
+            var_map   = OrderedDict{Symbol,Vector{DataFrame}}()
+
+            for (variant, reps_imp_refs) in variants_refs
+                profiles = Vector{DataFrame}(undef, length(reps_imp_refs))
+
+                for (i, ref_imp) in enumerate(reps_imp_refs)
+                    df_imp        = load_df(ref_imp)              # ← lazy fetch
+                    profiles[i]   = profile_dataframe(
+                                         df_imp;
+                                         score_cols = trimmed,
+                                         demo_cols  = cfg.demographics)
+                    GC.gc()                                       # drop df_imp
+                end
+                var_map[variant] = profiles
+            end
+
+            m_map[m] = var_map
+            GC.gc()                                               # reclaim temps
+        end
+
+        result[scen.name] = m_map
+        GC.gc()
+    end
+
+    return result
+end
+
+ =#
+
 function generate_all_profiles(f3::OrderedDict{Int,NamedTuple},
                                imps::OrderedDict{Int,NamedTuple};
                                years = nothing)
@@ -999,8 +1087,6 @@ end
 
 
 
-
-const CANDLOG = joinpath(INT_DIR, "candidate_set_warnings.log")
 
 
 function plot_scenario_year(

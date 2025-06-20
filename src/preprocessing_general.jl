@@ -232,7 +232,7 @@ end
 
 
 
-
+#= 
 
 # note the m=1 here! I could play with stats of the imputation....
 # another approach would be to boostrap the original dataset THEN apply to EACH of these! 
@@ -243,7 +243,7 @@ const GLOBAL_R_IMPUTATION = let
         R"""
         
         library(mice)
-
+        options(nnet.MaxNWts = 10000L)  
         df <- as.data.frame($df)
         init <- mice(df, maxit = 0, print = FALSE)
         meth <- init$method
@@ -275,6 +275,54 @@ const GLOBAL_R_IMPUTATION = let
                     predictorMatrix = pred,
                     seed = 123,
                     printFlag = FALSE)
+
+        completed_df <- complete(imp, 1)
+        """
+        return rcopy(DataFrame, R"completed_df")
+    end
+end =#
+
+
+const GLOBAL_R_IMPUTATION = let
+    function f(df::DataFrame; m::Int = 1)
+        # random seed to keep bootstrap independence
+        seed = rand(1:10^6)
+        RCall.reval("set.seed($seed)")
+
+        R"""
+        suppressPackageStartupMessages(library(mice))
+
+        df <- as.data.frame($df)
+
+        # ---------- boilerplate ----------
+        init <- mice(df, maxit = 0, print = FALSE)
+        meth <- init$method                   # default methods
+        pred <- make.predictorMatrix(df)
+        diag(pred) <- 0                       # no self-prediction
+
+        # ---------- customise methods ----------
+        for (v in names(df)) {
+          col <- df[[v]]
+          if (all(is.na(col)) || length(unique(na.omit(col))) <= 1) {
+            meth[v] <- ""                     # constant or all-missing
+          } else if (is.factor(col)) {
+            n_cat <- nlevels(col)
+            if (n_cat == 2) {
+              meth[v] <- "logreg"             # binomial GLM
+            } else {                          # 3+ categories
+              meth[v] <- "cart"               # safe, no weight explosion
+            }
+          } else if (is.numeric(col)) {
+            meth[v] <- "pmm"
+          }
+        }
+
+        # ---------- one imputation ----------
+        imp <- mice(df,
+                    m               = $m,
+                    method          = meth,
+                    predictorMatrix = pred,
+                    printFlag       = FALSE)
 
         completed_df <- complete(imp, 1)
         """
