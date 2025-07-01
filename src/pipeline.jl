@@ -1500,3 +1500,133 @@ function compare_demographic_across_scenarios(
     resize_to_layout!(fig)
     return fig
 end
+
+
+
+
+
+"""
+    save_plot(fig, year, scenario, cfg; variant, dir = "imgs", ext = ".png")
+
+Save `fig` under `dir/`, creating the directory if needed.  
+The file name pattern is:
+
+    {year}_{scenario}_{variant}_B{n_bootstrap}_M{max_m}_{yyyymmdd-HHMMSS}{ext}
+"""
+function save_plot(fig, year::Int, scenario::AbstractString, cfg;
+                   variant::AbstractString,
+                   dir::AbstractString = "imgs",
+                   ext::AbstractString = ".png")
+
+    # 1. make sure the directory exists
+    mkpath(dir)
+
+    # 2. assemble a human-readable, reproducible file name
+    time_stamp = Dates.format(now(), "yyyymmdd-HHMMSS")
+    max_m      = maximum(cfg.m_values_range)
+    fname      = joinpath(dir,
+        string(year, '_', scenario, '_', variant,
+               "_B", cfg.n_bootstrap,
+               "_M", max_m,
+               '_', time_stamp, ext))
+
+    # 3. save
+    save(fname, fig; px_per_unit = 2)
+    @info "saved plot → $fname"
+    return fname
+end
+
+"""
+    median_neff(all_meas, year, scenario;
+                variant    = :mice,
+                m_max      = typemax(Int),
+                aggregate  = false)
+
+Compute the median effective number of reversal pairs  
+N_eff = 1 / calc_reversal_HHI   for the requested
+`year` / `scenario` / `variant`.
+
+* If `aggregate == false` (default) → return `Dict(m ⇒ median N_eff(m))`.
+* If `aggregate == true`            → return a single `Float64` with the
+  median taken over *all m ≤ m_max*.
+
+`variant` may be a `Symbol` or `String`.  Set `m_max` to 5 if you want to
+exclude larger numbers of alternatives.
+"""
+function median_neff(all_meas,
+                     year::Integer,
+                     scenario::AbstractString;
+                     variant    = :mice,
+                     m_max::Int = typemax(Int),
+                     aggregate::Bool = false)
+
+    var = Symbol(variant)                       # normalise the key
+
+    scen_map = all_meas[year][scenario]         # m ⇒ measure ⇒ …
+
+    # collect medians per m
+    med_per_m = Dict{Int,Float64}()
+    for (m, mdict) in scen_map
+        m > m_max && continue
+        hhi_vec = mdict[:calc_reversal_HHI][var]        # already normalised
+        med_per_m[m] = median(1.0 ./ hhi_vec)           # N_eff = 1/HHI_*
+    end
+
+    return aggregate ? median(values(med_per_m)) : med_per_m
+end
+
+
+
+function enrp_table(all_meas, f3,
+year::Integer, scenario::AbstractString;
+variant = :mice, m_max::Int = typemax(Int))
+
+
+var   = Symbol(variant)
+data  = all_meas[year][scenario]              # m ⇒ measure ⇒ …
+m_vec = sort([m for m in keys(data) if m ≤ m_max])
+
+tbl = OrderedCollections.OrderedDict{Int,NamedTuple}()
+
+for m in m_vec
+    hhi_vec = data[m][:calc_reversal_HHI][var]    # already normalised
+    enrp    = median(1.0 ./ hhi_vec)
+    tbl[m]  = (enrp = enrp, max = factorial(big(m)) / 2)  # big() avoids overflow
+end
+return tbl
+end
+
+
+
+
+
+"""
+    hhi_table(all_meas, f3, year, scenario;
+              variant = :mice,
+              m_max   = typemax(Int))
+
+Return an `OrderedDict m ⇒ (hhi = median HHI_*, min = 2/factorial(m))`
+sorted by `m`.  Works just like `enrp_table`.
+"""
+function hhi_table(all_meas,
+                   f3,
+                   year::Integer,
+                   scenario::AbstractString;
+                   variant = :mice,
+                   m_max::Int = typemax(Int))
+
+    var   = Symbol(variant)
+    data  = all_meas[year][scenario]                 # m ⇒ measure ⇒ …
+    m_vec = sort([m for m in keys(data) if m ≤ m_max])
+
+    tbl = OrderedCollections.OrderedDict{Int,NamedTuple}()
+
+    for m in m_vec
+        hhi_vec = data[m][:calc_reversal_HHI][var]   # already normalised
+        tbl[m]  = (
+            hhi = median(hhi_vec),
+            min = 2.0 / float(factorial(big(m))),    # 1 / (#pairs)
+        )
+    end
+    return tbl
+end

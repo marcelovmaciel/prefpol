@@ -85,7 +85,9 @@ end
 
 """Sum of squares of local reversal components: Σ (2 * min(prop_i, prop_j))^2"""
 function calc_reversal_HHI(paired_accum, proportion_rankings::Dict)
-    sum(x^2 for x in local_reversal_values(paired_accum, proportion_rankings))
+    loc_revs = local_reversal_values(paired_accum, proportion_rankings)
+    total_R = sum(loc_revs)
+    sum(x^2 for x in (loc_revs ./ total_R))
 end
 
 """Geometric measure of reversal component: 
@@ -107,7 +109,7 @@ function fast_reversal_geometric(paired_accum, proportion_rankings::Dict)
         total_reversal += x
         total_hhi      += x^2
     end
-    sqrt(total_reversal * total_hhi)
+    sqrt(total_hhi/total_reversal)
 end
 
 
