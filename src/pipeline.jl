@@ -442,7 +442,7 @@ end
 
 
 const CANDLOG = joinpath(INT_DIR, "candidate_set_warnings.log")
-
+#= 
 function generate_profiles_for_year(year::Int,
                                     f3_entry::NamedTuple,
                                     imps_entry::NamedTuple)
@@ -501,6 +501,61 @@ function generate_profiles_for_year(year::Int,
         result[scen.name] = m_map
     end
 
+    return result
+end
+ =#
+
+
+
+function generate_profiles_for_year(year::Int,
+                                    f3_entry::NamedTuple,
+                                    imps_entry::NamedTuple)
+
+    cfg            = f3_entry.cfg
+    reps_raw       = f3_entry.data
+    variants_dict  = imps_entry.data
+    m_values       = cfg.m_values_range
+
+    result = OrderedDict{String,OrderedDict{Int,OrderedDict{Symbol,Vector{DataFrame}}}}()
+
+    for scen in cfg.scenarios
+        sets = unique(map(df ->
+            compute_candidate_set(df;
+                candidate_cols = cfg.candidates,
+                m              = cfg.max_candidates,
+                force_include  = scen.candidates),
+            reps_raw))
+
+        length(sets) != 1 && @warn "Year $year, scenario $(scen.name): $(length(sets)) candidate sets; using first."
+        full_list = sets[1]
+
+        m_map = OrderedDict{Int,OrderedDict{Symbol,Vector{DataFrame}}}()
+
+        for m in m_values
+            trimmed  = Symbol.(first(full_list, m))          # ordered Vector{String}
+            var_map  = OrderedDict{Symbol,Vector{DataFrame}}()
+
+            for (variant, reps_imp) in variants_dict
+                profiles = Vector{DataFrame}(undef, length(reps_imp))
+
+                for (i, df_imp) in enumerate(reps_imp)
+                    df = profile_dataframe(
+                             df_imp;
+                             score_cols = trimmed,
+                             demo_cols  = cfg.demographics)
+                    compress_rank_column!(df, trimmed; col = :profile)
+                    # ------------- NEW LINE ----------------------------------
+                    metadata!(df, "candidates", Symbol.(trimmed))  
+                    # ---------------------------------------------------------
+
+                    profiles[i] = df
+                end
+                var_map[variant] = profiles
+            end
+            m_map[m] = var_map
+        end
+        result[scen.name] = m_map
+    end
     return result
 end
 

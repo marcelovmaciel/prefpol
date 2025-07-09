@@ -625,3 +625,52 @@ end
 
 
 
+
+@inline function dict2svec(d::Dict{Symbol,<:Integer}; cs::Vector{Symbol}=cands,
+                           higher_is_better::Bool=false)
+    # 1. pack the m scores into an isbits StaticVector
+    m = length(cs)                                # number of candidates
+    vals = SVector{m,Int}(map(c -> d[c], cs))
+
+    # 2. permutation that sorts those scores
+    perm = sortperm(vals; rev = higher_is_better)           # Vector{Int}
+
+    # 3. return as SVector{m,UInt8} (10 B if m ≤ 10)
+    return SVector{m,UInt8}(perm)
+end
+
+
+
+
+# keep original    pool[code]  behaviour
+decode_rank(code::Integer,      pool) = pool[code]
+
+# call is a no-op if you pass the SVector itself
+decode_rank(r::SVector, _) = r
+
+
+
+function compress_rank_column!(df::DataFrame, cands; col::Symbol=:profile)
+    # 1. Dict → SVector
+    
+    sv = [dict2svec(r[col],cs = cands) for r in eachrow(df)]  # one tiny allocation per row
+
+    # 2. pool identical SVectors (UInt16 index)
+    pooled = PooledArray(sv; compress = true)
+
+    # 3. overwrite in-place; let Dict objects be GC’d
+    df[!, col] = pooled
+    GC.gc()                       # reclaim Dict storage promptly
+    return pooled.pool            # decoder lookup table
+end
+
+
+
+@inline function perm2dict(perm::AbstractVector{<:Integer},
+                           cs::Vector{Symbol})
+    d = Dict{Symbol,Int}()
+    @inbounds for (place, idx) in pairs(perm)          # place = 1,2,…
+        d[cs[idx]] = place
+    end
+    return d
+end

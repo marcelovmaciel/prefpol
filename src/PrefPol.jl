@@ -27,6 +27,7 @@ using TextWrap
 import OrderedCollections
 using OrderedCollections: OrderedDict
 using Logging
+using PooledArrays, StaticArrays 
 
 using JLD2, Arrow, TOML          # ← only for the helpers at bottom
 # the measure with all the 13 candidates will probably be utterly meaningless!! 
