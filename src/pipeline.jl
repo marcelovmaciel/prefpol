@@ -1630,3 +1630,34 @@ function hhi_table(all_meas,
     end
     return tbl
 end
+
+
+
+function polar_table(all_meas,
+                     _f3,                         # unused, kept for API parity
+                     year::Integer,
+                     scenario::AbstractString;
+                     variant    = :mice,
+                     m_max::Int = typemax(Int))
+
+    var   = Symbol(variant)
+    data  = all_meas[year][scenario]                   # m ⇒ measure ⇒ …
+    m_vec = sort([m for m in keys(data) if m ≤ m_max])
+
+    tbl = OrderedDict{Int,NamedTuple}()
+
+    for m in m_vec
+        md  = data[m]
+
+        psi_vec  = md[Symbol("Ψ")][var]
+        rhhi_vec = md[:fast_reversal_geometric][var]
+        r_vec    = md[:calc_total_reversal_component][var]
+
+        tbl[m] = (
+            psi  = median(psi_vec),
+            rhhi = median(rhhi_vec),
+            r    = median(r_vec),
+        )
+    end
+    return tbl
+end
