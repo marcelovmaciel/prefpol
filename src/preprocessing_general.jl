@@ -674,3 +674,37 @@ end
     end
     return d
 end
+
+
+perm_to_dict = @inline perm2dict
+
+
+function decode_profile_column!(df::DataFrame)
+    eltype(df.profile) <: Dict && return df            # nothing to do
+
+    cand_syms = metadata(df, "candidates")
+    col       = df.profile
+    decoded   = Vector{Dict{Symbol,Int}}(undef, length(col))
+
+    if col isa PooledArray
+        pool = col.pool
+        for j in eachindex(col)
+            perm = decode_rank(col[j], pool)
+            decoded[j] = perm_to_dict(perm, cand_syms)
+        end
+    else                                               # plain Vector{SVector}
+        for j in eachindex(col)
+            decoded[j] = perm_to_dict(col[j], cand_syms)
+        end
+    end
+
+    df[!, :profile] = decoded
+    return df
+end
+
+
+@inline function decode_each!(var_map)
+    for vec in values(var_map)          # vec::Vector{DataFrame}
+        decode_profile_column!(vec[1])  # length == 1 in streaming path
+    end
+end

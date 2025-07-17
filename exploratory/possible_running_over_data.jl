@@ -38,7 +38,7 @@ f2 = pp.save_all_bootstraps()
 
 f3 = pp.load_all_bootstraps()
 
-f3[2006].data[1].Lula |> unique
+
 
 # 1) Impute & save everything you already bootstrapped
 paths = pp.impute_all_bootstraps()
@@ -258,7 +258,8 @@ fig =pp.compare_demographic_across_scenarios(all_gm, f3, scens;
                                            demographic = "Ideology",
                                            variant     = :mice)
 
-scens2 = 
-fig =pp.compare_demographic_across_scenarios(all_gm, f3, scens;
-                                           demographic = "Ideology",
+scens2 = [(2006,"lula_alckmin"),  (2022,"lula_bolsonaro")]
+
+fig =pp.compare_demographic_across_scenarios(all_gm, f3, scens2;
+                                           demographic = "PT",
                                            variant     = :mice)                                           
