@@ -45,6 +45,9 @@ measures2006 = pp.save_or_load_measures_for_year(2006, profiles2006;
                                               verbose   = true)    # progress / info logs
 
 
+measures2006
+
+
 measures2018 = pp.save_or_load_measures_for_year(2018, profiles2018;
                                               overwrite = false,   # set true to rebuild
                                               verbose   = true)    # progress / info logs
@@ -54,6 +57,88 @@ measures2022 = pp.save_or_load_measures_for_year(2022, profiles2022;
                                               overwrite = false,   # set true to rebuild
                                               verbose   = true)    # progress / info logs                                              
 
+
+
+group_metrics2006  = pp.save_or_load_group_metrics_for_year(2006, profiles2006, f3[2006];
+                                                   overwrite=false, verbose=true)
+
+group_metrics2018  = pp.save_or_load_group_metrics_for_year(2018, profiles2018, f3[2018];
+                                                   overwrite=false, verbose=true,  two_pass = true)
+
+
+group_metrics2022  = pp.save_or_load_group_metrics_for_year(2022, profiles2022, f3[2022];
+                                                   overwrite=false, verbose=true)                                                   
+
+
+helper = Dict(2022=>measures2022)
+
+fig = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, helper; variant="mice")
+
+
+
+
+fig2 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, helper; variant="random")
+
+fig3 = pp.plot_scenario_year(2022, "lula_bolsonaro", f3, helper; variant="zero")
+
+
+cfg2022 = f3[2022].cfg          # same cfg you used to build `fig`
+
+pp.save_plot(fig,  2022, "lula_bolsonaro", cfg2022; variant = "mice")
+
+
+pp.save_plot(fig2, 2022, "lula_bolsonaro", cfg2022; variant = "random")
+
+pp.save_plot(fig3, 2022, "lula_bolsonaro", cfg2022; variant = "zero")
+
+
+
+helper = Dict(2006=>measures2006)
+
+fig = pp.plot_scenario_year(2006, "lula_alckmin", f3, helper; variant="mice")
+
+
+
+fig2 = pp.plot_scenario_year(2006, "lula_alckmin", f3, helper; variant="random")
+
+fig3 = pp.plot_scenario_year(2006, "lula_alckmin", f3, helper; variant="zero")
+
+
+
+cfg2006 = f3[2006].cfg          # same cfg you used to build `fig`
+
+pp.save_plot(fig,  2006, "lula_alckmin", cfg2006; variant = "mice")
+
+
+pp.save_plot(fig2, 2006, "lula_alckmin", cfg2006; variant = "random")
+
+
+pp.save_plot(fig3, 2006, "lula_alckmin", cfg2006; variant = "zero")
+
+
+
+
+helper = Dict(2018=>measures2018)
+
+fig = pp.plot_scenario_year(2018, "main_four", f3, helper; variant="mice")
+
+
+
+fig2 = pp.plot_scenario_year(2018, "no_forcing", f3, helper; variant="mice")
+
+fig3 = pp.plot_scenario_year(2018, "lula_bolsonaro", f3, helper; variant="mice")
+
+
+
+
+cfg2018 = f3[2018].cfg          # same cfg you used to build `fig`
+
+pp.save_plot(fig,  2018, "main_four", cfg2018; variant = "mice")
+
+
+pp.save_plot(fig2, 2018, "no_forcing", cfg2018; variant = "mice")
+
+pp.save_plot(fig3, 2018, "lula_bolsonaro", cfg2018; variant = "mice")
 
 #= test1 = profiles2022["lula_bolsonaro"][6][:mice, 1]
 
@@ -152,6 +237,21 @@ profiles2006["lula_alckmin"][6][:mice][1]
 
 profiles2006["lula_alckmin"][6][:mice][1][1,:profile] 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD ==============================================================================================
 
 
 

@@ -89,6 +89,12 @@ function load_and_prepare_scores_df(data_path::String; candidates = CANDIDATOS_e
 
    replace!( x -> x in (97.0, 98.0) ? 99.0 : x, df_e22.Q31_7)
    df_e22.Abortion = df_e22.Q31_7
+
+
+    df_e22.Age =  categorical(Int.(df_e22.D01A_FX_ID))
+    df_e22.Income = categorical(Int.(df_e22.D09a_FX_RENDAF))
+    df_e22.Education = categorical(Int.(df_e22.D03))
+
     return df_e22
 end
 
@@ -143,6 +149,10 @@ function load_and_prepare_e2006(df_path; candidates = candidates2006)
     df_e06.Ideology= categorical(df_e06.eseb19;
                 ordered = true,
                 levels  = [-1, 0, 1, 99])
+
+    df_e06.Age = categorical(Int.(df_e06.FX_IDADE))
+    df_e06.Education = categorical(Int.(df_e06.instru))
+    df_e06.Income = categorical([ismissing(x) ? 10 : x for x in df_e06.renda1])
 
     return(df_e06)
 end
@@ -226,6 +236,11 @@ function load_and_prepare_e2018(df_path; candidates = candidates2018)
                  df_e18[!, :Q1513])
 
     df_e18.PT = df_e18.Q1513
+
+
+    df_e18.Age = categorical(Int.(df_e18.D1A_FAIXAID))
+    df_e18.Education = categorical(Int.(df_e18.D3_ESCOLA))
+    df_e18.Income = categorical([ismissing(x) ? 10 : x for x in df_e18.D9B_FAIXA_RENDA])
 
     return(df_e18)                                        
 end

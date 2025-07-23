@@ -1759,7 +1759,7 @@ end
 
 
 
-
+#= 
 function save_or_load_group_metrics_for_year(year::Int,
                                              profiles_year,
                                              f3_entry;
@@ -1781,9 +1781,146 @@ function save_or_load_group_metrics_for_year(year::Int,
     return metrics
 end
 
-# Plotting ============================================
+
+=#
+
+ 
 
 
+# directory layout for per‑DataFrame caches
+_perdf(dir, year, scen, m, dem, rep) =
+    joinpath(dir, "per_df", string(year), string(scen), "m$m", string(dem),
+             "rep$rep.jld2")
+
+# ensure that a path’s parent directories exist
+_mkparent(path) = mkpath(dirname(path))
+
+
+function compute_and_cache_group_metrics_per_df!(
+        year::Int,
+        profiles_year::OrderedDict{String,<:Any},
+        cfg;
+        dir::AbstractString = GROUP_DIR,
+        overwrite::Bool     = false,
+        verbose::Bool       = true)
+
+    for (scen, m_map) in profiles_year
+        for (m, slice) in m_map                 # slice :: ProfilesSlice
+            variants   = collect(keys(slice.paths))
+            n_rep_max  = maximum(length(slice.paths[v]) for v in variants)
+
+            for dem in cfg.demographics
+                dem_sym = Symbol(dem)
+                pbar = pm.Progress(n_rep_max;
+                                desc="[$year|$scen|m=$m|$dem_sym]",
+                                barlen=28)
+
+                for rep in 1:n_rep_max
+                    cache_path = _perdf(dir, year, scen, m, dem_sym, rep)
+                    if isfile(cache_path) && !overwrite
+                        pm.next!(pbar); continue
+                    end
+
+                    var_map = Dict{Symbol,Vector{DataFrame}}()
+                    for var in variants
+                        length(slice.paths[var]) < rep && continue
+                        df = slice[var, rep]                 # load
+                        decode_profile_column!(df)
+                        var_map[var] = [df]
+                    end
+                    isempty(var_map) && (pm.next!(pbar); continue)
+
+                    res = bootstrap_group_metrics(var_map, dem_sym)
+
+                    _mkparent(cache_path)
+                    @save cache_path res              # ■ write to disk
+                    pm.next!(pbar)
+                end
+                pm.finish!(pbar); GC.gc()
+            end
+        end
+    end
+end
+
+# ────────────────── pass 2: aggregate caches ──────────────────
+function accumulate_cached_group_metrics_for_year!(
+        year::Int,
+        profiles_year::OrderedDict{String,<:Any},
+        cfg;
+        dir::AbstractString = GROUP_DIR,
+        verbose::Bool       = true)
+
+    out = OrderedDict()
+
+    for (scen, m_map) in profiles_year
+        scen_out = OrderedDict()
+        for (m, slice) in m_map
+            variants   = collect(keys(slice.paths))
+            n_rep_max  = maximum(length(slice.paths[v]) for v in variants)
+
+            dem_out = OrderedDict()
+            for dem in cfg.demographics
+                dem_sym = Symbol(dem)
+                verbose && @info "  → aggregating $scen, m=$m, dem=$dem_sym"
+
+                accum = Dict{Symbol,Dict{Symbol,Vector{Float64}}}()
+                pbar  = pm.Progress(n_rep_max;
+                                 desc="[$scen|m=$m|$dem_sym]", barlen=28)
+
+                for rep in 1:n_rep_max
+                    cache_path = _perdf(dir, year, scen, m, dem_sym, rep)
+                    isfile(cache_path) || error("Missing cache $cache_path")
+                    res = nothing; @load cache_path res
+                    update_accum!(accum, res, variants)
+                    pm.next!(pbar)
+                end
+                pm.finish!(pbar)
+                dem_out[dem_sym] = accum
+            end
+            scen_out[m] = dem_out
+        end
+        out[scen] = scen_out
+    end
+    return out           # scenario ⇒ m ⇒ dem ⇒ metric ⇒ variant ⇒ Vector
+end
+
+# ────────────────── public API (drop‑in) ──────────────────
+function save_or_load_group_metrics_for_year(year::Int,
+                                             profiles_year,
+                                             f3_entry;
+                                             dir::AbstractString = GROUP_DIR,
+                                             overwrite::Bool     = false,
+                                             two_pass::Bool      = false,
+                                             verbose::Bool       = true)
+
+    final_path = joinpath(dir, "group_metrics_$(year).jld2")
+
+    if isfile(final_path) && !overwrite && !two_pass
+        verbose && @warn "Group metrics for $year already cached; loading."
+        metrics = nothing; @load final_path metrics; return metrics
+    end
+
+    if two_pass
+        verbose && @info "Pass 1: computing & caching per‑DataFrame metrics…"
+        compute_and_cache_group_metrics_per_df!(year, profiles_year, f3_entry.cfg;
+                                                dir=dir, overwrite=overwrite,
+                                                verbose=verbose)
+
+        verbose && @info "Pass 2: aggregating cached metrics…"
+        metrics = accumulate_cached_group_metrics_for_year!(year, profiles_year,
+                                                            f3_entry.cfg;
+                                                            dir=dir,
+                                                            verbose=verbose)
+    else
+        verbose && @info "Computing group metrics for year $year (one‑pass)…"
+        metrics = apply_group_metrics_for_year_streaming(profiles_year,
+                                                         f3_entry.cfg)
+    end
+
+    @save final_path metrics
+    verbose && @info "Saved aggregated metrics for $year → $final_path"
+    return metrics
+end
 
 
 

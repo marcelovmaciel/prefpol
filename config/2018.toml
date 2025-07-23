@@ -1,0 +1,27 @@
+year            = 2018
+data_loader     = "load_and_prepare_e2018"
+data_file       = "data/eseb_2018/04622/04622.sav"
+max_candidates  = 7
+m_values_range  = [2, 3, 4, 5, 6, 7]
+
+n_bootstrap     = 1000
+n_alternatives  = 7
+force_include   = []
+rng_seed        = 42
+
+candidates = [
+  "Ciro_Gomes", "Manuela", "Guilherme_Boulos", "Marina_Silva",
+  "Fernando_Haddad", "Henrique_Meirelles", "Jair_Bolsonaro",
+  "Geraldo_Alckmin", "João_Amoêdo", "Lula", "Alvaro_Dias",
+  "João_Goulart_Filho", "Cabo_Daciolo", "Rodrigo_Maia", "Eymael",
+  "Vera", "Aécio_Neves", "Dilma_Rousseff", "Romero_Jucá",
+  "Renan_Calheiros", "Michel_Temer"
+]
+
+demographics = ["Sex", "Religion", "Race", "Ideology", "Age", "Education", "Income"]
+
+forced_scenarios = [
+  { name = "no_forcing",     candidates = [] },
+  { name = "lula_bolsonaro", candidates = ["Lula", "Jair_Bolsonaro", "Ciro_Gomes", "Geraldo_Alckmin"] },
+  { name = "main_four",      candidates = ["Fernando_Haddad", "Jair_Bolsonaro", "Ciro_Gomes", "Geraldo_Alckmin"] }
+]

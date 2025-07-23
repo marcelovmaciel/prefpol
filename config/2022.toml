@@ -1,0 +1,24 @@
+# ───────────── Election 2022 configuration ─────────────
+year            = 2022
+data_loader     = "load_and_prepare_scores_df"
+data_file       = "data/04810/04810.sav"
+max_candidates  = 7
+m_values_range  = [2, 3, 4, 5, 6, 7]
+
+n_bootstrap     = 1000         # ← how many bootstrap replicates to draw
+n_alternatives  = 7              # ← analyse up to this many alternatives
+force_include   = []             # ← global forcing outside scenarios (none)
+rng_seed        = 42             # ← reproducible randomness
+
+candidates = [
+  "CIRO_GOMES", "BOLSONARO", "ALVARO_DIAS", "ARTHUR_LIRA", "LULA",
+  "GERALDO_ALCKMIN", "GILBERTO_KASSAB", "EDUARDO_LEITE", "BOULOS",
+  "MARINA_SILVA", "TARCISIO_DE_FREITAS", "LUCIANO_BIVAR", "SIMONE_TEBET"
+]
+
+demographics = ["Sex", "Religion", "Race", "Ideology", "PT", "Abortion"]
+
+# ── forced scenarios (vector of inline tables) ──
+forced_scenarios = [
+  { name = "lula_bolsonaro", candidates = ["LULA", "BOLSONARO"] }
+]
