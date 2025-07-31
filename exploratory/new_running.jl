@@ -5,7 +5,7 @@ import PrefPol as pp
 
 
 
-# f2 = pp.save_all_bootstraps()
+#f2 = pp.save_all_bootstraps()
 
 
 
@@ -13,12 +13,14 @@ import PrefPol as pp
 f3       = pp.load_all_bootstraps()                             # year ⇒ (data,cfg,path)
 
 
-#index_paths = pp.impute_from_f3(f3; overwrite=false)
+# index_paths = pp.impute_from_f3(f3; overwrite=false) # this is what should be run! 
 
 
-#paths = pp.impute_all_bootstraps()
+                 # year ⇒ (data,cfg,path)
 
-#imps2018     = pp.load_all_imputed_bootstraps(years=[2018])                     # year ⇒ (data,cfg,path)
+
+f3[2022].data[1] |> names
+
 
 iy2006 = pp.load_imputed_year(2006)
 
@@ -28,24 +30,34 @@ iy2018 = pp.load_imputed_year(2018)
 
 iy2022 = pp.load_imputed_year(2022)
 
+
+
+
 profiles2006 = pp.generate_profiles_for_year_streamed_from_index(
                    2006, f3[2006], iy2006; overwrite = false)
+
 
 
 profiles2018 = pp.generate_profiles_for_year_streamed_from_index(
                    2018, f3[2018], iy2018; overwrite = false)
 
+
+
 profiles2022 = pp.generate_profiles_for_year_streamed_from_index(
-                   2022, f3[2022], iy2022; overwrite = false)                   
+                   2022, f3[2022], iy2022; overwrite = false)
+                   
+
+
+iy2022[:zero,1] |> names
+
+profiles2022["lula_bolsonaro"][6][:zero,1] |> names
+
 
 
 
 measures2006 = pp.save_or_load_measures_for_year(2006, profiles2006;
                                               overwrite = false,   # set true to rebuild
                                               verbose   = true)    # progress / info logs
-
-
-measures2006
 
 
 measures2018 = pp.save_or_load_measures_for_year(2018, profiles2018;
@@ -60,14 +72,26 @@ measures2022 = pp.save_or_load_measures_for_year(2022, profiles2022;
 
 
 group_metrics2006  = pp.save_or_load_group_metrics_for_year(2006, profiles2006, f3[2006];
-                                                   overwrite=false, verbose=true)
+                                                   overwrite=false, verbose=true, two_pass=true)
 
 group_metrics2018  = pp.save_or_load_group_metrics_for_year(2018, profiles2018, f3[2018];
                                                    overwrite=false, verbose=true,  two_pass = true)
 
 
+
+bad = pp.audit_profiles_year(2022)
+
+if !isempty(bad)
+    pp.repair_bad_profiles!(2022, bad, profiles2022, iy2022, f3[2022].cfg)
+end
+
+
+
+length(bad), first(bad, min(end, 5))
+
+ 
 group_metrics2022  = pp.save_or_load_group_metrics_for_year(2022, profiles2022, f3[2022];
-                                                   overwrite=false, verbose=true)                                                   
+                                                   overwrite=false, verbose=true, two_pass = true )                                                   
 
 
 helper = Dict(2022=>measures2022)
@@ -139,6 +163,19 @@ pp.save_plot(fig,  2018, "main_four", cfg2018; variant = "mice")
 pp.save_plot(fig2, 2018, "no_forcing", cfg2018; variant = "mice")
 
 pp.save_plot(fig3, 2018, "lula_bolsonaro", cfg2018; variant = "mice")
+
+
+
+
+
+
+
+
+fig4 = pp.plot_group_demographics_lines(Dict(2018=> group_metrics2018),
+  f3, 2018, "main_four", variants = [:mice], maxcols = 2, clist_size = 60)
+
+pp.save_plot(fig4, 2006, "lula_alckmin", cfg2006; variant = "mice") 
+
 
 #= test1 = profiles2022["lula_bolsonaro"][6][:mice, 1]
 
@@ -568,3 +605,17 @@ tbl2018c = pp.polar_table(Dict(2018 => meas2018), f3, 2018, "no_forcing";
 
 tbl2022 = pp.polar_table(Dict(2022 => meas2022), f3, 2022, "lula_bolsonaro";
                        variant = :mice, m_max = 7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# quick test of

@@ -38,8 +38,8 @@ f2 = pp.save_all_bootstraps()
 
 f3 = pp.load_all_bootstraps()
 
-
-
+foo = pp.load_imputed_bootstrap(2006)
+ 
 # 1) Impute & save everything you already bootstrapped
 paths = pp.impute_all_bootstraps()
 

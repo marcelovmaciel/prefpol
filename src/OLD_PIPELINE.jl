@@ -169,17 +169,6 @@ function build_bootstrapped_encoded_variants(scores_df::DataFrame;
 end
 
 
-function load_election_data(cfg::ElectionConfig)
-    loader_sym = Symbol(cfg.data_loader)
-
-    # resolve in the current module’s namespace
-    if !isdefined(@__MODULE__, loader_sym)
-        throw(ArgumentError("data_loader ‘$(cfg.data_loader)’ not found in module $(nameof(@__MODULE__))"))
-    end
-
-    loader_fun = getfield(@__MODULE__, loader_sym)
-    return loader_fun(cfg.data_file; candidates = cfg.candidates)
-end
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Candidate set for ONE BootstrapConfig, using your existing helper

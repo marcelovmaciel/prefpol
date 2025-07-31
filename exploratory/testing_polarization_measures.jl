@@ -1284,3 +1284,40 @@ G     = sqrt(C*D)
 
 filter(x->x.g ===1, df )
 
+# Profiles from the beginning 
+
+profile = [
+    Dict(:A=>1, :B=>2, :C=>3, :D=>4),
+    Dict(:A=>1, :B=>2, :D=>3, :C=>4),
+    Dict(:A=>1, :C=>2, :B=>3, :D=>4),
+    Dict(:A=>1, :C=>2, :D=>3, :B=>4),
+    Dict(:A=>1, :D=>2, :C=>3, :B=>4),
+    Dict(:A=>1, :D=>2, :B=>3, :C=>4),
+    Dict(:B=>1, :A=>2, :C=>3, :D=>4),
+    Dict(:B=>1, :A=>2, :D=>3, :C=>4),
+    Dict(:B=>1, :C=>2, :A=>3, :D=>4),
+    Dict(:B=>1, :C=>2, :D=>3, :A=>4),
+    Dict(:B=>1, :D=>2, :A=>3, :C=>4),
+    Dict(:B=>1, :D=>2, :C=>3, :A=>4),
+]
+
+profile2 = vcat(
+    fill(Dict(:A=>1, :D=>2, :C=>3, :B=>4), 6)...,
+    fill(Dict(:B=>1, :C=>2, :D=>3, :A=>4), 6)...,
+)
+
+
+profile3 = vcat(profile, profile2)
+
+pp.Ψ(profile)
+
+pp.Ψ(profile2)
+
+pp.Ψ(profile3)
+
+
+pp.calc_total_reversal_component(profile)
+pp.fast_reversal_geometric(profile)
+
+
+pp.calc_total_reversal_component(profile3)

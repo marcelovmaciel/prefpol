@@ -240,7 +240,7 @@ function load_and_prepare_e2018(df_path; candidates = candidates2018)
 
     df_e18.Age = categorical(Int.(df_e18.D1A_FAIXAID))
     df_e18.Education = categorical(Int.(df_e18.D3_ESCOLA))
-    df_e18.Income = categorical([ismissing(x) ? 10 : x for x in df_e18.D9B_FAIXA_RENDA])
+    df_e18.Income = categorical([ismissing(x) ? 10 : x for x in df_e18.D9B_FAIXA_RENDAF])
 
     return(df_e18)                                        
 end

@@ -16,7 +16,7 @@ candidates = [
   "MARINA_SILVA", "TARCISIO_DE_FREITAS", "LUCIANO_BIVAR", "SIMONE_TEBET"
 ]
 
-demographics = ["Sex", "Religion", "Race", "Ideology", "PT", "Abortion"]
+demographics = ["Sex", "Religion", "Race", "Ideology", "PT", "Abortion", "Age", "Education", "Income"]
 
 # ── forced scenarios (vector of inline tables) ──
 forced_scenarios = [

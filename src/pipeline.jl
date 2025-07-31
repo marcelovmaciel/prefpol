@@ -1924,6 +1924,108 @@ end
 
 
 
+"""
+    audit_profiles_year(year; dir = PROFILES_DATA_DIR)
+
+Try reading every encoded profile DF referenced from
+`profiles_index_YEAR.jld2`. Returns a Vector of NamedTuples with
+(problem=:missing_file|:missing_var|:read_error, and file/scen/m/var/rep/err).
+"""
+function audit_profiles_year(year::Int; dir::AbstractString = PROFILES_DATA_DIR)
+    idxfile = joinpath(dir, "profiles_index_$(year).jld2")
+    isfile(idxfile) || error("Index not found: $idxfile")
+    profiles_year = JLD2.load(idxfile, "result")  # scenario ⇒ m ⇒ ProfilesSlice
+
+    bad = NamedTuple[]
+    # count how many to show a progress bar
+    total = sum(length(ps.paths[var]) for (_, m_map) in profiles_year
+                                   for (_, ps) in m_map
+                                   for var in keys(ps.paths))
+    prog = pm.Progress(total; desc = "[audit $year]", barlen = 30)
+
+    for (scen, m_map) in profiles_year
+        for (m, ps) in m_map
+            for var in keys(ps.paths)
+                for (i, fpath) in enumerate(ps.paths[var])
+                    if !isfile(fpath)
+                        push!(bad, (problem=:missing_file, file=fpath, scenario=scen,
+                                    m=m, variant=var, rep=i, err=nothing))
+                        pm.next!(prog); continue
+                    end
+                    # Open without reconstructing the whole DF to check presence of "df"
+                    ok, err = true, nothing
+                    try
+                        JLD2.jldopen(fpath, "r") do f
+                            if !haskey(f, "df")
+                                ok = false
+                                err = "missing variable 'df'"
+                            else
+                                # force a real read to trigger any reconstruction errors
+                                _ = read(f, "df")
+                            end
+                        end
+                    catch e
+                        ok = false; err = e
+                    end
+                    if !ok
+                        push!(bad, (problem = err == "missing variable 'df'" ? :missing_var : :read_error,
+                                    file=fpath, scenario=scen, m=m, variant=var, rep=i, err=err))
+                    end
+                    pm.next!(prog)
+                end
+            end
+        end
+    end
+    pm.finish!(prog)
+    return bad
+end
+
+
+"""
+    rebuild_profile_file!(ps, iy, cfg, var, rep; dir = PROFILES_DATA_DIR)
+
+Recomputes an encoded profile DF for one (variant, rep) and overwrites it.
+Requires: `ps::ProfilesSlice`, `iy::ImputedYear`, `cfg::ElectionConfig`.
+"""
+function rebuild_profile_file!(ps::ProfilesSlice,
+                               iy::ImputedYear,
+                               cfg,
+                               var::Symbol,
+                               rep::Int;
+                               dir::AbstractString = PROFILES_DATA_DIR)
+    df_imp = iy[var, rep]  # loads imputed replicate
+    df = profile_dataframe(df_imp;
+                           score_cols = ps.cand_list,  # or ps.cand_syms in your code
+                           demo_cols  = cfg.demographics)
+    compress_rank_column!(df, ps.cand_list; col = :profile)
+    metadata!(df, "candidates", ps.cand_list)
+    fprof = ps.paths[var][rep]
+    JLD2.@save fprof df
+    return fprof
+end
+
+"""
+    repair_bad_profiles!(year, bad, profiles_year, iy, cfg)
+
+For each entry in `bad` returned by `audit_profiles_year`, rebuild the file.
+Skips :missing_file/:missing_var/:read_error uniformly.
+"""
+function repair_bad_profiles!(year::Int,
+                              bad::Vector{<:NamedTuple},
+                              profiles_year,
+                              iy::ImputedYear,
+                              cfg)
+    for b in bad
+        scen = b.scenario; m = b.m
+        ps = profiles_year[scen][m]
+        @info "Rebuilding $(basename(b.file))  (scen=$(scen), m=$(m), var=$(b.variant), rep=$(b.rep))"
+        rebuild_profile_file!(ps, iy, cfg, b.variant, b.rep)
+    end
+    return nothing
+end
+
+
+
 function plot_scenario_year(
     year,
     scenario,
