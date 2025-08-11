@@ -2024,7 +2024,15 @@ function repair_bad_profiles!(year::Int,
     return nothing
 end
 
-
+function repair_bad_profiles!(year::Int, bad, iy::ImputedYear, cfg; dir=PROFILES_DATA_DIR)
+    idx = load_profiles_index(year; dir)
+    for b in bad
+        ps = idx[b.scenario][b.m]
+        @info "Rebuilding $(basename(b.file))  (scen=$(b.scenario), m=$(b.m), var=$(b.variant), rep=$(b.rep))"
+        rebuild_profile_file!(ps, iy, cfg, b.variant, b.rep)  # will overwrite ps.paths[var][rep]
+    end
+    nothing
+end
 
 function plot_scenario_year(
     year,
@@ -2232,13 +2240,13 @@ function plot_group_demographics_lines(
         maxcols::Int  = 3,
         n_yticks::Int = 5,
         palette       = Makie.wong_colors(), clist_size = 60,
+        demographics = f3[year].cfg.demographics
 )
 
     # ── data slice & metadata ──────────────────────────────────────────
     gm            = all_gm[year][scenario]                  # m ⇒ (dem ⇒ …)
     m_values_int  = sort(collect(keys(gm)))                 # Vector{Int}
     xs_m          = Float32.(m_values_int)                  # Makie prefers Float32
-    demographics  = f3[year].cfg.demographics
     n_demo        = length(demographics)
 
     scenobj = only(filter(s->s.name==scenario, f3[year].cfg.scenarios))
@@ -2256,7 +2264,7 @@ function plot_group_demographics_lines(
     # ── figure geometry ────────────────────────────────────────────────
     ncol       = min(maxcols, n_demo)
     nrow       = ceil(Int, n_demo / ncol)
-    title_txt  = "Year $(year) • $(n_boot) bootstraps • m = $(first(m_values_int)) … $(last(m_values_int))"
+    title_txt  = "Year $(year) • $(n_boot) pseudo-profiles • m = $(first(m_values_int)) … $(last(m_values_int))"
     fig_width  = max(300*ncol, 10*length(title_txt) + 60)   # widen if title is long
     fig_height = 300*nrow
 
@@ -2291,7 +2299,8 @@ function plot_group_demographics_lines(
 
             append!(allvals, vcat(vals_per_m...))
 
-            meds32 = Float32.(mean.(vals_per_m))
+            # meds32 = Float32.(mean.(vals_per_m))
+            meds32 = Float32.(median.(vals_per_m))
             q25s32 = Float32.(map(x -> quantile(x, 0.25f0), vals_per_m))
             q75s32 = Float32.(map(x -> quantile(x, 0.75f0), vals_per_m))
 
@@ -2384,7 +2393,7 @@ function compare_demographic_across_scenarios(
                  layout = (3, n_panels))
     rowgap!(fig.layout, 20); colgap!(fig.layout, 30)
 
-    header_txt = "$demographic • number of alternatives = $(first(m_vals))…$(last(m_vals)) • $n_boot bootstraps"
+    header_txt = "$demographic • number of alternatives = $(first(m_vals))…$(last(m_vals)) • $n_boot pseudo-profiles"
     fig[1, 1:n_panels] = Label(fig, header_txt; fontsize = 22, halign = :center)
 
     legend_handles = Lines[]; legend_labels = String[]
@@ -2468,7 +2477,7 @@ function save_plot(fig, year::Int, scenario::AbstractString, cfg;
                '_', time_stamp, ext))
 
     # 3. save
-    save(fname, fig; px_per_unit = 2)
+    save(fname, fig; px_per_unit = 4)
     @info "saved plot → $fname"
     return fname
 end

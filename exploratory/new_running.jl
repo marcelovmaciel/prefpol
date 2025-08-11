@@ -3,11 +3,10 @@ using PrefPol
 
 import PrefPol as pp
 
+cd("..")
 
 
 #f2 = pp.save_all_bootstraps()
-
-
 
 
 f3       = pp.load_all_bootstraps()                             # year ⇒ (data,cfg,path)
@@ -79,15 +78,14 @@ group_metrics2018  = pp.save_or_load_group_metrics_for_year(2018, profiles2018, 
 
 
 
-bad = pp.audit_profiles_year(2022)
+# bad = pp.audit_profiles_year(2022)
 
-if !isempty(bad)
-    pp.repair_bad_profiles!(2022, bad, profiles2022, iy2022, f3[2022].cfg)
-end
+# if !isempty(bad)
+#     pp.repair_bad_profiles!(2022, bad, profiles2022, iy2022, f3[2022].cfg)
+# end
 
 
 
-length(bad), first(bad, min(end, 5))
 
  
 group_metrics2022  = pp.save_or_load_group_metrics_for_year(2022, profiles2022, f3[2022];
@@ -167,14 +165,44 @@ pp.save_plot(fig3, 2018, "lula_bolsonaro", cfg2018; variant = "mice")
 
 
 
-
-
-
-
 fig4 = pp.plot_group_demographics_lines(Dict(2018=> group_metrics2018),
-  f3, 2018, "main_four", variants = [:mice], maxcols = 2, clist_size = 60)
+  f3, 2018, "main_four", variants = [:mice], maxcols = 2, clist_size = 60,
+                                        demographics = ["Income", "Ideology"])
 
-pp.save_plot(fig4, 2006, "lula_alckmin", cfg2006; variant = "mice") 
+
+
+
+fig4_1 =  pp.plot_group_demographics_lines(Dict(2018=> group_metrics2018),
+  f3, 2018, "main_four", variants = [:mice], maxcols = 3, clist_size = 60,
+demographics = setdiff(f3[2018].cfg.demographics, ["Income", "Ideology"]))
+
+pp.save_plot(fig4_1, 2018, "main_four_group_therest", cfg2018; variant = "mice")
+
+
+
+dems_main = ["Ideology", "PT", "Abortion", "Religion", "Sex", "Income"]
+
+
+fig5 = pp.plot_group_demographics_lines(Dict(2022=> group_metrics2022),
+  f3, 2022, "lula_bolsonaro", variants = [:mice], maxcols = 3, clist_size = 60,
+                                        demographics = dems_main)
+
+pp.save_plot(fig5, 2022, "lula_bolsonaro_main", f3[2022].cfg; variant = "mice")
+
+
+
+fig5_1 = pp.plot_group_demographics_lines(Dict(2022=> group_metrics2022),
+  f3, 2022, "lula_bolsonaro", variants = [:mice], maxcols = 3, clist_size = 60,
+                                        demographics = setdiff(f3[2022].cfg.demographics,dems_main))
+
+pp.save_plot(fig5_1, 2022, "lula_bolsonaro_others", f3[2022].cfg; variant = "mice")
+
+
+fig6 = pp.plot_group_demographics_lines(Dict(2006=> group_metrics2006),
+  f3, 2006, "lula_alckmin", variants = [:mice], maxcols = 3, clist_size = 60 )
+
+
+pp.save_plot(fig6, 2006, "lula_alckmin_group", cfg2006; variant = "mice")
 
 
 #= test1 = profiles2022["lula_bolsonaro"][6][:mice, 1]

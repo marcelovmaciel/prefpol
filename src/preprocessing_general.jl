@@ -33,9 +33,29 @@ function extract_unique_scores(countmaps::Dict{String,<:AbstractDict})
     end
     return sort!(unique(all_keys))
 end
+
+
+# function convert_keys_to_int(dict)
+#     return Dict(Int(k) => v for (k, v) in dict)
+# end
+
 function convert_keys_to_int(dict)
-    return Dict(Int(k) => v for (k, v) in dict)
+    return Dict(
+        if k isa Integer
+            k
+        elseif k isa AbstractFloat
+            r = round(Int, k)
+            if !isapprox(k, r; atol=1e-8)
+                throw(ArgumentError("Expected near-integer key, got $k"))
+            end
+            r
+        else
+            throw(ArgumentError("Unsupported key type: $(typeof(k))"))
+        end => v
+        for (k, v) in dict
+    )
 end
+
 
 function sanitize_countmaps(countmaps::Dict{String,<:AbstractDict})
     return Dict(c => convert_keys_to_int(cm) for (c, cm) in countmaps)

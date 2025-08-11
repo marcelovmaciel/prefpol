@@ -547,7 +547,7 @@ function lines_alt_by_variant(measures_over_m::AbstractDict;
     titlegrid = GridLayout(tellwidth = true)
     fig[0, 1] = titlegrid
     Label(titlegrid[1, 1];
-          text = "Year = $(year)   •   Number of alternatives = $first_m … $last_m   •   $n_bootstrap bootstraps by variant",
+          text = "Year = $(year)   •   Number of alternatives = $first_m … $last_m   •   $n_bootstrap pseudo-profiles",
           fontsize = 18, halign = :left)
     Label(titlegrid[2, 1];
           text = candidate_label,
@@ -890,7 +890,7 @@ function lines_group_measures_over_m(
     first_demo      = demographics[1]
     n_boot = length(stats_by_m[first_m][first_demo][Symbol(variants[1])][measures[1]])
 
-    title_txt = "Year = $(year) • $(n_boot) bootstraps • number of alternatives = $first_m … $last_m"
+    title_txt = "Year = $(year) • $(n_boot) pseudo-profiles • number of alternatives = $first_m … $last_m"
     subtitle_txt = isempty(candidate_label) ? "" : candidate_label
 
     # ── colour & style dictionaries ────────────────────────────────────
@@ -1006,7 +1006,7 @@ function compare_global_measures_v3(
     rowgap!(fig.layout, 18); colgap!(fig.layout, 22)
 
     fig[0, 1:ncol] = Label(fig,
-        "Year $year   •   number of alternatives = $(first(ms))…$(last(ms))   •   $n_boot bootstraps",
+        "Year $year   •   number of alternatives = $(first(ms))…$(last(ms))   •   $n_boot pseudo-profiles",
         fontsize = 20, halign = :left)
 
     # ── create axes ----------------------------------------------------------
@@ -1723,7 +1723,7 @@ function compare_demographic_across_scenariosy(
 
     # global header spans all columns in row 1
     fig[1, 1:n_panels] = Label(fig,
-        "$demographic • number of alternatives = $(first(m_values))…$(last(m_values)) • $n_boot bootstraps",
+        "$demographic • number of alternatives = $(first(m_values))…$(last(m_values)) • $n_boot pseudo-profiles",
         fontsize = 22, halign = :center)
 
     # collect legend handles
