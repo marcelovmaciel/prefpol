@@ -3,7 +3,8 @@ using PrefPol
 
 import PrefPol as pp
 
-cd("..")
+
+# cd("..")
 
 
 #f2 = pp.save_all_bootstraps()
@@ -72,7 +73,6 @@ measures2022 = pp.save_or_load_measures_for_year(2022, profiles2022;
 
 group_metrics2006  = pp.save_or_load_group_metrics_for_year(2006, profiles2006, f3[2006];
                                                    overwrite=false, verbose=true, two_pass=true)
-
 group_metrics2018  = pp.save_or_load_group_metrics_for_year(2018, profiles2018, f3[2018];
                                                    overwrite=false, verbose=true,  two_pass = true)
 
@@ -638,12 +638,38 @@ tbl2022 = pp.polar_table(Dict(2022 => meas2022), f3, 2022, "lula_bolsonaro";
 
 
 
+test = pp.build_polar_tables(group_metrics2022)
+
+tbls = test.by_combo
+
+import Printf
+
+# Example: iterate and pretty-print
+for ((cset, var, variant), od) in tbls
+    println("\n== cset=$(cset) | variable=$(var) | variant=$(variant) ==")
+    for (m, t) in od
+        Printf.@printf "m=%d  D=%.4f  C=%.4f  G=%.4f\n" m coalesce(t.D, NaN) coalesce(t.C, NaN) coalesce(t.G, NaN)
+    end
+end
 
 
 
+# DNERP now
+
+
+measures_list = [measures2006, measures2018, measures2022];
+cset_list     = ["lula_alckmin", "main_four", "lula_bolsonaro"]
+labels        = ["2006", "2018", "2022"]
 
 
 
+ fig = pp.plot_D_ENRP_by_m(measures_list,
+                          cset_list, labels;
+                           band_q=(0.25, 0.75))
 
-
-# quick test of
+pp.trace_D_ENRP(
+    [measures2006, measures2018, measures2022],
+    ["lula_alckmin", "main_four", "lula_bolsonaro"],
+    3:6,
+    :mice
+)

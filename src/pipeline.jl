@@ -2024,7 +2024,8 @@ function repair_bad_profiles!(year::Int,
     return nothing
 end
 
-function repair_bad_profiles!(year::Int, bad, iy::ImputedYear, cfg; dir=PROFILES_DATA_DIR)
+function repair_bad_profiles!(year::Int, bad, iy::ImputedYear, cfg;
+                              dir=PROFILES_DATA_DIR)
     idx = load_profiles_index(year; dir)
     for b in bad
         ps = idx[b.scenario][b.m]
@@ -2606,4 +2607,236 @@ function polar_table(all_meas,
         )
     end
     return tbl
+end
+
+
+
+"""
+    build_polar_tables(all_meas)
+
+Compute median summaries for measures :D, :C, :G from a nested container:
+
+    all_meas[cset][m][variable][variant][measure] => Vector{<:Real}
+
+Returns a NamedTuple:
+- :by_combo => Dict{Tuple(cset, variable, variant), OrderedDict{Int, NamedTuple{(:D,:C,:G),NTuple{3,Union{Missing,Float64}}}}}
+  (mirrors your `polar_table`: for each (cset, variable, variant), map m ↦ (D, C, G) medians)
+- :flat     => Vector{NamedTuple{(:cset,:m,:variable,:variant,:D,:C,:G),Tuple{Any,Int,Any,Any,Union{Missing,Float64},Union{Missing,Float64},Union{Missing,Float64}}}}
+  (one row per (cset, m, variable, variant))
+
+Only input is the nested structure. Medians are computed per leaf vector.
+Missing measures are returned as `missing`.
+"""
+function build_polar_tables(all_meas)
+    # --- collectors ---
+    by_combo = Dict{Tuple{Any,Any,Any}, OrderedDict{Int,NamedTuple{(:D,:C,:G),NTuple{3,Union{Missing,Float64}}}}}()
+    flat_rows = NamedTuple[]
+
+    # --- traverse the nested structure ---
+    for (cset, level_m) in all_meas
+        for (m, level_var) in level_m
+            for (var, level_variant) in level_var
+                for (variant, level_measure) in level_variant
+                    # pull vectors (or mark missing if absent)
+                    D_vec = get(level_measure, :D, nothing)
+                    C_vec = get(level_measure, :C, nothing)
+                    G_vec = get(level_measure, :G, nothing)
+
+                    D_med = D_vec === nothing ? missing : median(D_vec)
+                    C_med = C_vec === nothing ? missing : median(C_vec)
+                    G_med = G_vec === nothing ? sqrt(C_med * D_med) : median(G_vec)
+
+                    # push to flat table
+                    push!(flat_rows, (
+                        cset    = cset,
+                        m       = m,
+                        variable= var,
+                        variant = variant,
+                        D = D_med,
+                        C = C_med,
+                        G = G_med,
+                    ))
+
+                    # fill the polar_table-like view grouped by (cset, variable, variant)
+                    key = (cset, var, variant)
+                    od = get!(by_combo, key, OrderedDict{Int, NamedTuple{(:D,:C,:G),NTuple{3,Union{Missing,Float64}}}}())
+                    od[m] = (D = D_med, C = C_med, G = G_med)
+                end
+            end
+        end
+    end
+
+    # ensure stable ordering by m inside each OrderedDict
+    for (_, od) in by_combo
+        for (k, v) in sort(collect(od); by=first)
+            delete!(od, k)  # reinsert in sorted order
+            od[k] = v
+        end
+    end
+
+    return (by_combo = by_combo, flat = flat_rows)
+end
+
+
+
+function D_ENRP(HHI::Float64,m)
+
+ if m == 2
+        error("D_ENRP is undefined for m = 2 (division by zero in normalization).")
+end
+
+max_enrp = factorial(m)/2
+enrp = 1/HHI
+d_enrp = (enrp-1) / (max_enrp -1 )
+return d_enrp
+end
+
+function D_ENRP(HHIs::Vector{Float64},m)
+
+
+d_enrps = D_ENRP.(HHIs,m)
+return d_enrps
+end
+
+
+function D_ENRP(measure_container, cset, m, variant = :mice)
+    HHIS = measure_container[cset][m][:calc_reversal_HHI][variant]
+    return D_ENRP(HHIS, m)
+end
+
+
+
+"""
+summarize_D_ENRP_over_m(measures, cset; ms=2:6, variant=:mice, band=(0.1, 0.9))
+
+Return (ms, med, low, high) vectors for D_ENRP across m.
+Missing entries are NaN, so lines/bands break instead of interpolating.
+"""
+function summarize_D_ENRP_over_m(measures, cset::String;
+                                  ms=2:6, variant=:mice, band=(0.1, 0.9))
+    qlo, qhi = band
+    meds = Float64[]; lows = Float64[]; highs = Float64[]
+    for m in ms
+        if haskey(measures, cset) &&
+           haskey(measures[cset], m) &&
+           haskey(measures[cset][m], :calc_reversal_HHI) &&
+           haskey(measures[cset][m][:calc_reversal_HHI], variant)
+            HHIs = measures[cset][m][:calc_reversal_HHI][variant]
+            dvals = D_ENRP(HHIs, m)
+            push!(meds, quantile(dvals, 0.5))
+            push!(lows, quantile(dvals, qlo))
+            push!(highs, quantile(dvals, qhi))
+        else
+            push!(meds, NaN); push!(lows, NaN); push!(highs, NaN)
+        end
+    end
+    return (ms = collect(ms), med = meds, low = lows, high = highs)
+end
+
+
+function trace_D_ENRP(measures_list, cset_list, ms, variant)
+    for (year_idx, meas) in enumerate(measures_list)
+        for cset in cset_list
+            for m in ms
+                if haskey(meas, cset) && haskey(meas[cset], m)
+                    vals = D_ENRP(meas, cset, m, variant)
+                    bad_idx = findall(x -> ismissing(x) || isnan(x), vals)
+                    if !isempty(bad_idx)
+                        @warn "Found NaN/missing in D_ENRP" year_idx=year_idx cset=cset m=m indices=bad_idx bad_values=vals[bad_idx]
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+function plot_D_ENRP_by_m(
+    measures_list::Vector,          # [measures2006, measures2018, measures2022]
+    cset_list::Vector{String},      # ["lula_alckmin", "main_four", "lula_bolsonaro"]
+    labels::Vector{String};         # ["2006", "2018", "2022"]
+    ms = 3:5,
+    variant::Symbol = :mice,
+    band_q = (0.10, 0.90),          # 10–90% band
+    marker_size = 9,
+    line_width = 2.0
+)
+    @assert length(measures_list) == length(cset_list) == length(labels)
+
+    fig = Figure(resolution = (900, 520))
+
+    ax = Axis(fig[1, 1];
+        xlabel = "Number of alternatives (m)",
+        ylabel = L"D_{\mathrm{ENRP}} \text{  (diversity of reversed pairs)}",
+        title  = "Effective diversity of reversed pairs across years",
+        xminorticksvisible = true,
+        xticks = ms,
+        yticks = 0:0.1:1,
+    )
+    # set y limits AFTER creation (old Makie doesn’t accept ylimits=)
+    ylims!(ax, 0.0, 1.02)
+
+    # palette (works across Makie versions)
+    cols = try
+        Makie.wong_colors()
+    catch
+        distinguishable_colors(8)
+    end
+
+    lines_for_legend = AbstractPlot[]
+
+    for (i, (meas, cset, lab)) in enumerate(zip(measures_list, cset_list, labels))
+        xs  = Int[]
+        med = Float64[]
+        lo  = Float64[]
+        hi  = Float64[]
+
+        for m in ms
+            haskey(meas, cset)      || continue
+            haskey(meas[cset], m)   || continue
+            denrp_vals = D_ENRP(meas, cset, m, variant)
+            isempty(denrp_vals)     && continue
+
+            push!(xs,  m)
+            push!(med, quantile(denrp_vals, 0.5))
+            push!(lo,  quantile(denrp_vals, band_q[1]))
+            push!(hi,  quantile(denrp_vals, band_q[2]))
+        end
+
+        isempty(xs) && continue
+        col = cols[mod1(i, length(cols))]
+
+        band!(ax, xs, lo, hi, color = (col, 0.18))
+        ln = lines!(ax, xs, med, color = col, linewidth = line_width)
+        scatter!(ax, xs, med, color = col, markersize = marker_size)
+
+        push!(lines_for_legend, ln)
+    end
+
+    Legend(fig[1, 2], lines_for_legend, labels, "Year"; framevisible = false)
+    fig
+end
+
+
+
+function build_D_ENRP_median_table(D_ENRP_func, measures_list, cset_list, years; m_values=3:6)
+    rows = DataFrame(Year = years)
+    for m in m_values
+        medians = [median(D_ENRP_func(measures, cset, m))
+                   for (measures, cset) in zip(measures_list, cset_list)]
+        rows[!, Symbol("m=$(m)")] = medians
+    end
+    return rows
+end
+
+
+
+function build_ENRP_median_table(measures_list, cset_list, years; m_values=3:6, variant=:mice)
+    rows = DataFrame(Year = years)
+    for m in m_values
+        medians = [median(1 ./ measures[cset][m][:calc_reversal_HHI][variant])
+                   for (measures, cset) in zip(measures_list, cset_list)]
+        rows[!, Symbol("m=$(m)")] = medians
+    end
+    return rows
 end
